@@ -1,0 +1,296 @@
+// =====================================================================
+// Taller Villanueva — schema.prisma (Prisma 7, Postgres/Supabase)
+// Traducido desde bd_taller_villanueva_v2.sql (MySQL) a Postgres.
+//
+// Decisiones de diseño (validadas con el usuario):
+//  - Autenticación CUSTOM: se conserva `contrasena_hash` en Usuarios.
+//    Se AGREGA `nombre_usuario` (UNIQUE) porque el login/prototipo usan
+//    usuario, no email. `correo` pasa a OPCIONAL (el form no lo pide).
+//  - El rol de negocio "Empleado" del prototipo mapea al valor de BD
+//    `Trabajador` (se conserva el enum del SQL original).
+//  - ENUMs de MySQL -> enums nativos de Postgres (`@@map`/`@map` para
+//    valores con espacios/acentos).
+//  - Triggers, vistas y RLS viven en la migración SQL (ver
+//    prisma/migrations/0_init/migration.sql), no se expresan aquí.
+//  - Se añaden algunos campos OPCIONALES que exigen los prototipos y no
+//    estaban en el SQL (marcados como "extensión prototipo").
+// =====================================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "./generated/prisma"
+}
+
+// Prisma 7: las URLs de conexión ya NO van aquí. La conexión de runtime la
+// provee el driver adapter (ver src/lib/prisma.ts) y la de migraciones vive en
+// prisma.config.ts (datasource.url = DIRECT_URL).
+datasource db {
+  provider = "postgresql"
+}
+
+// --------------------------- ENUMS -----------------------------------
+enum RolUsuario {
+  Administrador
+  Trabajador
+
+  @@map("rol_usuario")
+}
+
+enum EstadoActivoInactivo {
+  Activo
+  Inactivo
+
+  @@map("estado_activo_inactivo")
+}
+
+enum TipoCliente {
+  PersonaNatural @map("Persona Natural")
+  Empresa
+
+  @@map("tipo_cliente")
+}
+
+enum EstadoMaterial {
+  Activo
+  Descontinuado
+
+  @@map("estado_material")
+}
+
+enum EstadoObra {
+  Presupuestando
+  EnEjecucion    @map("En Ejecución")
+  Finalizado
+  Cancelado
+
+  @@map("estado_obra")
+}
+
+enum TipoMovimiento {
+  Entrada
+  Salida
+  Ajuste
+
+  @@map("tipo_movimiento")
+}
+
+enum TipoPago {
+  Efectivo
+  Transferencia
+  Cheque
+  Tarjeta
+  Otro
+
+  @@map("tipo_pago")
+}
+
+enum AccionAuditoria {
+  INSERT
+  UPDATE
+  DELETE
+
+  @@map("accion_auditoria")
+}
+
+// --------------------------- MODELOS ---------------------------------
+
+model Usuario {
+  idUsuario        Int                  @id @default(autoincrement()) @map("id_usuario")
+  nombreUsuario    String               @unique @map("nombre_usuario") @db.VarChar(50) // extensión: login por usuario
+  nombre           String               @db.VarChar(50)
+  apellido         String               @db.VarChar(50)
+  correo           String?              @unique @db.VarChar(100) // ahora opcional (el form no lo pide)
+  contrasenaHash   String               @map("contrasena_hash") @db.VarChar(255)
+  rol              RolUsuario
+  estado           EstadoActivoInactivo @default(Activo)
+  intentosFallidos Int                  @default(0) @map("intentos_fallidos") @db.SmallInt
+  bloqueadoHasta   DateTime?            @map("bloqueado_hasta") @db.Timestamptz
+  ultimoAcceso     DateTime?            @map("ultimo_acceso") @db.Timestamptz
+  creadoEn         DateTime             @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn    DateTime             @updatedAt @map("actualizado_en") @db.Timestamptz
+
+  clientesCreados       Cliente[]                @relation("ClienteCreadoPor")
+  clientesActualizados  Cliente[]                @relation("ClienteActualizadoPor")
+  obrasCreadas          Obra[]                   @relation("ObraCreadoPor")
+  obrasActualizadas     Obra[]                   @relation("ObraActualizadoPor")
+  presupuestosCreados   Presupuesto[]            @relation("PresupuestoCreadoPor")
+  pagosRegistrados      PagoObra[]
+  movimientos           MovimientoInventario[]
+  auditorias            Auditoria[]
+
+  @@map("Usuarios")
+}
+
+model Cliente {
+  idCliente            Int                  @id @default(autoincrement()) @map("id_cliente")
+  tipoCliente          TipoCliente          @map("tipo_cliente")
+  identificacionFiscal String               @unique @map("identificacion_fiscal") @db.VarChar(20)
+  nombreRazonSocial    String               @map("nombre_razon_social") @db.VarChar(150)
+  direccion            String               @db.VarChar(255)
+  telefono             String               @db.VarChar(20)
+  correo               String?              @db.VarChar(100)
+  estado               EstadoActivoInactivo @default(Activo)
+  // --- extensión prototipo (opcionales) ---
+  distrito             String?              @db.VarChar(100)
+  telefonoSecundario   String?              @map("telefono_secundario") @db.VarChar(20)
+  correoSecundario     String?              @map("correo_secundario") @db.VarChar(100)
+  contactoNombre       String?              @map("contacto_nombre") @db.VarChar(150)
+  contactoCargo        String?              @map("contacto_cargo") @db.VarChar(100)
+  // --- auditoría ---
+  creadoEn             DateTime             @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn        DateTime             @updatedAt @map("actualizado_en") @db.Timestamptz
+  creadoPor            Int?                 @map("creado_por")
+  actualizadoPor       Int?                 @map("actualizado_por")
+
+  creadoPorUsuario      Usuario? @relation("ClienteCreadoPor", fields: [creadoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+  actualizadoPorUsuario Usuario? @relation("ClienteActualizadoPor", fields: [actualizadoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+  obras                 Obra[]
+
+  @@index([estado])
+  @@map("Clientes")
+}
+
+model Material {
+  idMaterial    Int            @id @default(autoincrement()) @map("id_material")
+  codigoMaterial String        @unique @map("codigo_material") @db.VarChar(50)
+  nombre        String         @db.VarChar(100)
+  descripcion   String?        @db.VarChar(255) // extensión prototipo
+  categoria     String         @db.VarChar(50)
+  unidadMedida  String         @map("unidad_medida") @db.VarChar(20)
+  stockActual   Decimal        @default(0) @map("stock_actual") @db.Decimal(10, 2)
+  stockMinimo   Decimal        @default(0) @map("stock_minimo") @db.Decimal(10, 2)
+  stockMaximo   Decimal?       @map("stock_maximo") @db.Decimal(10, 2)
+  cupp          Decimal        @default(0) @db.Decimal(10, 2)
+  areaAlmacen   String?        @map("area_almacen") @db.VarChar(50) // extensión prototipo
+  estanteNivel  String?        @map("estante_nivel") @db.VarChar(50) // extensión prototipo
+  estado        EstadoMaterial @default(Activo)
+  creadoEn      DateTime       @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn DateTime       @updatedAt @map("actualizado_en") @db.Timestamptz
+
+  detalles     DetallePresupuesto[]
+  movimientos  MovimientoInventario[]
+
+  @@index([categoria])
+  @@map("Materiales")
+}
+
+model Obra {
+  idObra               Int         @id @default(autoincrement()) @map("id_obra")
+  idCliente            Int         @map("id_cliente")
+  nombreObra           String      @map("nombre_obra") @db.VarChar(150)
+  descripcion          String?     @db.Text
+  tipoObra             String?     @map("tipo_obra") @db.VarChar(100) // extensión prototipo
+  ubicacion            String?     @db.VarChar(255) // extensión prototipo
+  fechaInicio          DateTime    @map("fecha_inicio") @db.Date
+  fechaEntregaEstimada DateTime    @map("fecha_entrega_estimada") @db.Date
+  fechaEntregaReal     DateTime?   @map("fecha_entrega_real") @db.Date
+  porcentajeAvance     Decimal     @default(0) @map("porcentaje_avance") @db.Decimal(5, 2)
+  estadoObra           EstadoObra  @default(Presupuestando) @map("estado_obra")
+  creadoEn             DateTime    @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn        DateTime    @updatedAt @map("actualizado_en") @db.Timestamptz
+  creadoPor            Int?        @map("creado_por")
+  actualizadoPor       Int?        @map("actualizado_por")
+
+  cliente               Cliente  @relation(fields: [idCliente], references: [idCliente], onDelete: Restrict, onUpdate: Cascade)
+  creadoPorUsuario      Usuario? @relation("ObraCreadoPor", fields: [creadoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+  actualizadoPorUsuario Usuario? @relation("ObraActualizadoPor", fields: [actualizadoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+  presupuesto           Presupuesto?
+  pagos                 PagoObra[]
+  movimientos           MovimientoInventario[]
+
+  @@index([idCliente])
+  @@index([estadoObra])
+  @@map("Obras")
+}
+
+model Presupuesto {
+  idPresupuesto            Int      @id @default(autoincrement()) @map("id_presupuesto")
+  idObra                   Int      @unique @map("id_obra")
+  costoManoObra            Decimal  @default(0) @map("costo_mano_obra") @db.Decimal(12, 2)
+  costoMaterialesBase      Decimal  @default(0) @map("costo_materiales_base") @db.Decimal(12, 2)
+  costoMermas              Decimal  @default(0) @map("costo_mermas") @db.Decimal(12, 2) // trigger: 6% de costo_materiales_base
+  margenGananciaPorcentaje Decimal  @default(0) @map("margen_ganancia_porcentaje") @db.Decimal(5, 2)
+  montoTotal               Decimal  @default(0) @map("monto_total") @db.Decimal(12, 2)
+  fechaCreacion            DateTime @map("fecha_creacion") @db.Date
+  creadoEn                 DateTime @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn            DateTime @updatedAt @map("actualizado_en") @db.Timestamptz
+  creadoPor                Int?     @map("creado_por")
+
+  obra             Obra                 @relation(fields: [idObra], references: [idObra], onDelete: Cascade, onUpdate: Cascade)
+  creadoPorUsuario Usuario?             @relation("PresupuestoCreadoPor", fields: [creadoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+  detalles         DetallePresupuesto[]
+
+  @@map("Presupuestos")
+}
+
+model DetallePresupuesto {
+  idDetalle             Int     @id @default(autoincrement()) @map("id_detalle")
+  idPresupuesto         Int     @map("id_presupuesto")
+  idMaterial            Int     @map("id_material")
+  cantidadRequerida     Decimal @map("cantidad_requerida") @db.Decimal(10, 2)
+  precioUnitarioMomento Decimal @map("precio_unitario_momento") @db.Decimal(10, 2)
+
+  presupuesto Presupuesto @relation(fields: [idPresupuesto], references: [idPresupuesto], onDelete: Cascade, onUpdate: Cascade)
+  material    Material    @relation(fields: [idMaterial], references: [idMaterial], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([idPresupuesto, idMaterial], map: "uq_detalle_presupuesto_material")
+  @@index([idMaterial])
+  @@map("Detalle_Presupuesto")
+}
+
+model PagoObra {
+  idPago        Int      @id @default(autoincrement()) @map("id_pago")
+  idObra        Int      @map("id_obra")
+  montoAbonado  Decimal  @map("monto_abonado") @db.Decimal(12, 2)
+  fechaPago     DateTime @map("fecha_pago") @db.Date
+  tipoPago      TipoPago @map("tipo_pago")
+  observaciones String?  @db.VarChar(255)
+  registradoPor Int?     @map("registrado_por")
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz
+
+  obra              Obra     @relation(fields: [idObra], references: [idObra], onDelete: Restrict, onUpdate: Cascade)
+  registradoPorUser Usuario? @relation(fields: [registradoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([idObra])
+  @@index([fechaPago])
+  @@map("Pagos_Obras")
+}
+
+model MovimientoInventario {
+  idMovimiento        Int            @id @default(autoincrement()) @map("id_movimiento")
+  idMaterial          Int            @map("id_material")
+  idObra              Int?           @map("id_obra")
+  tipoMovimiento      TipoMovimiento @map("tipo_movimiento")
+  cantidad            Decimal        @db.Decimal(10, 2)
+  saldoResultante     Decimal        @map("saldo_resultante") @db.Decimal(10, 2)
+  costoUnitario       Decimal        @default(0) @map("costo_unitario") @db.Decimal(10, 2)
+  motivo              String?        @db.VarChar(255)
+  referenciaDocumento String?        @map("referencia_documento") @db.VarChar(50)
+  idUsuario           Int            @map("id_usuario")
+  fechaMovimiento     DateTime       @default(now()) @map("fecha_movimiento") @db.Timestamptz
+
+  material Material @relation(fields: [idMaterial], references: [idMaterial], onDelete: Restrict, onUpdate: Cascade)
+  obra     Obra?    @relation(fields: [idObra], references: [idObra], onDelete: SetNull, onUpdate: Cascade)
+  usuario  Usuario  @relation(fields: [idUsuario], references: [idUsuario], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([idMaterial, fechaMovimiento])
+  @@index([idObra])
+  @@map("Movimientos_Inventario")
+}
+
+model Auditoria {
+  idAuditoria     BigInt          @id @default(autoincrement()) @map("id_auditoria")
+  tablaAfectada   String          @map("tabla_afectada") @db.VarChar(64)
+  idRegistro      Int             @map("id_registro")
+  accion          AccionAuditoria
+  datosAnteriores Json?           @map("datos_anteriores") @db.JsonB
+  datosNuevos     Json?           @map("datos_nuevos") @db.JsonB
+  idUsuario       Int?            @map("id_usuario")
+  fechaHora       DateTime        @default(now()) @map("fecha_hora") @db.Timestamptz
+
+  usuario Usuario? @relation(fields: [idUsuario], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([tablaAfectada, idRegistro])
+  @@index([fechaHora])
+  @@map("Auditoria")
+}

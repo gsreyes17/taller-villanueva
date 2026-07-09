@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Taller Villanueva</title>
+    <style>
+      :root { color-scheme: light; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { height: 100%; }
+      body {
+        display: flex; align-items: center; justify-content: center;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: linear-gradient(180deg, #fdf6ec 0%, #fbeee0 100%);
+        color: #0f172a; -webkit-app-region: drag; user-select: none;
+      }
+      .card { text-align: center; }
+      .logo {
+        width: 84px; height: 84px; margin: 0 auto 20px;
+        display: flex; align-items: center; justify-content: center;
+        background: #f97316; border-radius: 22px; color: #fff;
+        box-shadow: 0 12px 30px rgba(249, 115, 22, .35);
+      }
+      h1 { font-size: 22px; font-weight: 700; }
+      p { margin-top: 6px; color: #64748b; font-size: 14px; }
+      .spinner {
+        width: 34px; height: 34px; margin: 26px auto 0;
+        border: 3px solid #f1dcc4; border-top-color: #f97316;
+        border-radius: 50%; animation: spin .9s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      #offline { display: none; }
+      :target#offline { display: block; }
+      .btn {
+        -webkit-app-region: no-drag; margin-top: 22px; cursor: pointer;
+        background: #f97316; color: #fff; border: none; border-radius: 10px;
+        padding: 11px 22px; font-size: 14px; font-weight: 600;
+      }
+      .btn:hover { background: #ea580c; }
+      .hide-on-offline:target ~ * {}
+    </style>
+  </head>
+  <body>
+    <div class="card" id="loading">
+      <div class="logo">
+        <!-- Tu logo: coloca electron/logo.png. Si no existe, se usa el ícono por defecto. -->
+        <img src="./logo.png" alt="Taller Villanueva" width="52" height="52"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+        <svg style="display:none" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20"/><path d="M12 4v16"/><path d="m7 10 5-3 5 3"/><path d="M7 10v10"/><path d="M17 10v10"/></svg>
+      </div>
+      <h1>Taller Villanueva</h1>
+      <p>Conectando con la base de datos…</p>
+      <div class="spinner"></div>
+    </div>
+
+    <div class="card" id="offline">
+      <div class="logo" style="background:#dc2626;box-shadow:0 12px 30px rgba(220,38,38,.35)">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      </div>
+      <h1>Sin conexión a la base de datos</h1>
+      <p>No se pudo contactar con Supabase. Verifica tu conexión a internet.</p>
+      <button class="btn" onclick="window.electronAPI && window.electronAPI.retry()">Reintentar</button>
+    </div>
+  </body>
+</html>

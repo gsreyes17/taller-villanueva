@@ -1,0 +1,53 @@
+# =====================================================================
+# electron-builder — empaquetado del aplicativo de escritorio (FASE 2)
+# Requiere `next build` previo (output: "standalone" en next.config.ts).
+# Empaqueta el servidor Next.js standalone dentro de resources/app.
+# =====================================================================
+appId: pe.tallervillanueva.gestion
+productName: Taller Villanueva
+copyright: © Taller Villanueva
+
+directories:
+  output: dist-electron
+  buildResources: build
+
+# Archivos del proceso principal de Electron.
+files:
+  - electron/**/*
+  - package.json
+
+# El build de Next.js (standalone) se copia como recurso externo.
+# El contenido de .next/standalone va a la raíz de `app` -> server.js queda en
+# app/server.js, que busca ./.next/static y ./public relativos a sí mismo.
+extraResources:
+  - from: .next/standalone
+    to: app
+  - from: .next/static
+    to: app/.next/static
+  - from: public
+    to: app/public
+  # Red de seguridad: el cliente Prisma generado en su ruta relativa esperada.
+  - from: prisma/generated
+    to: app/prisma/generated
+  # Coloca aquí un .env de producción para el paquete, si aplica.
+  # (Alternativa recomendada: dejar que el usuario ponga su .env en
+  #  %APPDATA%/Taller Villanueva/.env tras instalar — ver main.js loadRuntimeEnv.)
+  # - from: .env.production
+  #   to: app/.env
+
+win:
+  target:
+    - nsis
+  # icon: build/icon.ico
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.business
+  # icon: build/icon.icns
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true

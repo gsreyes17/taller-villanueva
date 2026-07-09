@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Sistema de diseño — Taller Villanueva
+   Paleta extraída de los prototipos:
+   - Acento: naranja  #F97316
+   - Sidebar: navy oscuro  #0F172A
+   - Fondo: crema cálido  #FBEEE0 / #FDF6EC
+   - Badges/progreso: navy  #1E3A8A
+   ============================================================ */
+@theme {
+  --color-brand: #f97316;
+  --color-brand-hover: #ea580c;
+  --color-brand-light: #fb923c;
+  --color-brand-soft: #fff1e6;
+
+  --color-sidebar: #0f172a;
+  --color-sidebar-hover: #1e293b;
+  --color-sidebar-muted: #94a3b8;
+
+  --color-navy: #1e3a8a;
+  --color-navy-soft: #dbeafe;
+
+  --color-cream: #fbeee0;
+  --color-cream-soft: #fdf6ec;
+
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 0.9rem;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Scrollbar sutil acorde a la paleta */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #d6c5ad;
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #c2ad8e;
+    background-clip: content-box;
+  }
+}
+
+@layer utilities {
+  /* Fondo crema con degradado suave del área de contenido */
+  .bg-app {
+    background: linear-gradient(180deg, #fdf6ec 0%, #fbeee0 100%);
+  }
+  /* Fondo del login: crema con textura de cuadrícula muy sutil */
+  .bg-login {
+    background-color: #f6ecdd;
+    background-image:
+      linear-gradient(rgba(217, 195, 165, 0.18) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(217, 195, 165, 0.18) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  /* Región arrastrable para la barra custom de Electron (fase 2) */
+  .app-drag {
+    -webkit-app-region: drag;
+  }
+  .app-no-drag {
+    -webkit-app-region: no-drag;
+  }
+}
