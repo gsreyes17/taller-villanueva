@@ -100,6 +100,7 @@ model Usuario {
   nombre           String               @db.VarChar(50)
   apellido         String               @db.VarChar(50)
   correo           String?              @unique @db.VarChar(100) // ahora opcional (el form no lo pide)
+  telefono         String?              @db.VarChar(20) // extensión: perfil del usuario
   contrasenaHash   String               @map("contrasena_hash") @db.VarChar(255)
   rol              RolUsuario
   estado           EstadoActivoInactivo @default(Activo)

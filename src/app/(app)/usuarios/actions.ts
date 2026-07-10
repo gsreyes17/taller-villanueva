@@ -136,6 +136,15 @@ export async function eliminarUsuario(id: number): Promise<ActionResult> {
   }
 
   try {
+    // Si el usuario tiene movimientos de inventario (FK RESTRICT) no se puede
+    // borrar sin romper la trazabilidad: en ese caso se desactiva (baja lógica).
+    const movimientos = await prisma.movimientoInventario.count({ where: { idUsuario: id } });
+    if (movimientos > 0) {
+      await prisma.usuario.update({ where: { idUsuario: id }, data: { estado: "Inactivo" } });
+      await registrarAuditoria({ tabla: "Usuarios", idRegistro: id, accion: "UPDATE", idUsuario: user.sub, datosNuevos: { estado: "Inactivo" } });
+      return { ok: true, message: "El usuario tiene movimientos registrados: se desactivó en vez de eliminarlo." };
+    }
+
     await prisma.usuario.delete({ where: { idUsuario: id } });
     await registrarAuditoria({
       tabla: "Usuarios",

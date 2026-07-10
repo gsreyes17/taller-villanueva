@@ -22,7 +22,7 @@ export function TitleBar() {
   if (!isElectron) return null;
 
   return (
-    <div className="app-drag flex h-9 shrink-0 items-center justify-between bg-sidebar pl-4 text-slate-300">
+    <div className="app-titlebar app-drag flex h-9 shrink-0 items-center justify-between bg-sidebar pl-4 text-slate-300">
       <span className="text-xs font-semibold text-slate-400">Taller Villanueva</span>
       <div className="app-no-drag flex h-full">
         <button

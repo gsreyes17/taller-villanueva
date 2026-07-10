@@ -80,3 +80,58 @@
     -webkit-app-region: no-drag;
   }
 }
+
+/* ============================================================
+   Impresión / Exportar a PDF
+   Oculta el cromo de la app (barra de título, sidebar, header)
+   y deja fluir solo el contenido del reporte en varias páginas.
+   ============================================================ */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  body {
+    display: block !important;
+  }
+  /* Ocultar todo lo que no es el reporte */
+  .app-titlebar,
+  aside,
+  header,
+  .print\:hidden {
+    display: none !important;
+  }
+  /* Neutralizar el layout de altura fija para que el contenido fluya */
+  .app-shell,
+  .app-main-col {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  main {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  /* Evitar que tablas anchas se recorten */
+  .overflow-x-auto,
+  .overflow-y-auto {
+    overflow: visible !important;
+  }
+  /* No cortar filas/tarjetas a la mitad entre páginas */
+  tr,
+  .break-inside-avoid {
+    break-inside: avoid;
+  }
+  @page {
+    margin: 12mm;
+  }
+}

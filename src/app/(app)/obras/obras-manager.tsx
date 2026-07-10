@@ -400,7 +400,11 @@ function PresupuestoModal({
             <span>Precio Unit.</span>
             <span />
           </div>
-          {filas.map((f, i) => (
+          {filas.map((f, i) => {
+            const usadosEnOtras = new Set(
+              filas.filter((_, idx) => idx !== i).map((r) => r.idMaterial).filter(Boolean),
+            );
+            return (
             <div key={i} className="grid grid-cols-[1fr_120px_130px_40px] items-center gap-2">
               <Select
                 value={f.idMaterial}
@@ -411,8 +415,13 @@ function PresupuestoModal({
               >
                 <option value="">Seleccionar material...</option>
                 {materiales.map((m) => (
-                  <option key={m.idMaterial} value={m.idMaterial}>
+                  <option
+                    key={m.idMaterial}
+                    value={m.idMaterial}
+                    disabled={usadosEnOtras.has(String(m.idMaterial))}
+                  >
                     {m.codigoMaterial} — {m.nombre}
+                    {usadosEnOtras.has(String(m.idMaterial)) ? " (ya agregado)" : ""}
                   </option>
                 ))}
               </Select>
@@ -422,7 +431,8 @@ function PresupuestoModal({
                 <X size={16} />
               </button>
             </div>
-          ))}
+            );
+          })}
           <Button variant="ghost" size="sm" onClick={addFila}>
             <Plus size={15} /> Agregar material
           </Button>

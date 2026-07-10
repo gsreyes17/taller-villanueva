@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   maximize: () => ipcRenderer.send("window:maximize"),
   close: () => ipcRenderer.send("window:close"),
   retry: () => ipcRenderer.invoke("app:retry"),
+  exportarPDF: () => ipcRenderer.invoke("app:exportPDF"),
   onMaximizeChange: (cb) => {
     const handler = (_e, isMax) => cb(isMax);
     ipcRenderer.on("window:maximized", handler);

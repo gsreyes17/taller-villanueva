@@ -3,7 +3,7 @@
 // Envuelve el servidor Next.js embebido corriendo localmente (como Discord).
 // La BD sigue siendo remota (Supabase): se requiere internet.
 // =====================================================================
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const http = require("node:http");
@@ -183,6 +183,33 @@ ipcMain.on("window:maximize", () => {
   else mainWindow.maximize();
 });
 ipcMain.on("window:close", () => mainWindow?.close());
+
+// Exporta la vista actual (reporte) a un PDF nativo, sin el encabezado
+// "localhost / fecha" que agrega el navegador. Respeta el @media print,
+// por lo que el sidebar/header ya vienen ocultos.
+ipcMain.handle("app:exportPDF", async () => {
+  if (!mainWindow) return { ok: false, error: "sin ventana" };
+  try {
+    const data = await mainWindow.webContents.printToPDF({
+      printBackground: true,
+      margins: { marginType: "default" },
+      pageSize: "A4",
+    });
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: "Guardar reporte como PDF",
+      defaultPath: `reporte-${stamp}.pdf`,
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+    if (canceled || !filePath) return { ok: false };
+    fs.writeFileSync(filePath, data);
+    shell.openPath(filePath); // abre el PDF recién guardado
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
 ipcMain.handle("app:retry", async () => {
   if (mainWindow) mainWindow.loadFile(path.join(__dirname, "loading.html"));
   await boot();

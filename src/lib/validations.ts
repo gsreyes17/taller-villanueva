@@ -56,20 +56,25 @@ export const clienteSchema = z.object({
 });
 
 // --------------------------- Materiales ------------------------------
-export const materialSchema = z.object({
-  codigoMaterial: z.string().trim().min(1, "El código es obligatorio").max(50),
-  nombre: z.string().trim().min(1, "El nombre es obligatorio").max(100),
-  descripcion: z.string().trim().max(255).optional().or(z.literal("")),
-  categoria: z.string().trim().min(1, "La categoría es obligatoria").max(50),
-  unidadMedida: z.string().trim().min(1, "La unidad es obligatoria").max(20),
-  stockActual: z.coerce.number().min(0, "No puede ser negativo").default(0),
-  stockMinimo: z.coerce.number().min(0, "No puede ser negativo").default(0),
-  stockMaximo: z.coerce.number().min(0).optional(),
-  cupp: z.coerce.number().min(0, "No puede ser negativo").default(0),
-  areaAlmacen: z.string().trim().max(50).optional().or(z.literal("")),
-  estanteNivel: z.string().trim().max(50).optional().or(z.literal("")),
-  estado: z.enum(["Activo", "Descontinuado"]).default("Activo"),
-});
+export const materialSchema = z
+  .object({
+    codigoMaterial: z.string().trim().min(1, "El código es obligatorio").max(50),
+    nombre: z.string().trim().min(1, "El nombre es obligatorio").max(100),
+    descripcion: z.string().trim().max(255).optional().or(z.literal("")),
+    categoria: z.string().trim().min(1, "La categoría es obligatoria").max(50),
+    unidadMedida: z.string().trim().min(1, "La unidad es obligatoria").max(20),
+    stockActual: z.coerce.number().min(0, "No puede ser negativo").default(0),
+    stockMinimo: z.coerce.number().min(0, "No puede ser negativo").default(0),
+    stockMaximo: z.coerce.number().min(0).optional(),
+    cupp: z.coerce.number().min(0, "No puede ser negativo").default(0),
+    areaAlmacen: z.string().trim().max(50).optional().or(z.literal("")),
+    estanteNivel: z.string().trim().max(50).optional().or(z.literal("")),
+    estado: z.enum(["Activo", "Descontinuado"]).default("Activo"),
+  })
+  .refine((d) => d.stockMaximo == null || d.stockMaximo >= d.stockMinimo, {
+    message: "El stock máximo no puede ser menor al mínimo",
+    path: ["stockMaximo"],
+  });
 
 // --------------------------- Movimientos inventario ------------------
 export const movimientoSchema = z.object({
@@ -117,8 +122,14 @@ export const detalleMaterialSchema = z.object({
 export const presupuestoSchema = z.object({
   idObra: z.coerce.number().int().positive(),
   costoManoObra: z.coerce.number().min(0).default(0),
-  margenGananciaPorcentaje: z.coerce.number().min(0).default(0),
-  detalles: z.array(detalleMaterialSchema).min(1, "Agregue al menos un material"),
+  margenGananciaPorcentaje: z.coerce.number().min(0).max(1000, "Margen fuera de rango").default(0),
+  detalles: z
+    .array(detalleMaterialSchema)
+    .min(1, "Agregue al menos un material")
+    .refine(
+      (rows) => new Set(rows.map((r) => r.idMaterial)).size === rows.length,
+      { message: "Hay un material repetido en el detalle. Únelo en una sola fila." },
+    ),
 });
 
 // --------------------------- Pagos -----------------------------------
@@ -129,6 +140,31 @@ export const pagoSchema = z.object({
   tipoPago: z.enum(["Efectivo", "Transferencia", "Cheque", "Tarjeta", "Otro"]),
   observaciones: z.string().trim().max(255).optional().or(z.literal("")),
 });
+
+// --------------------------- Perfil (autogestión) --------------------
+export const perfilSchema = z
+  .object({
+    nombre: z.string().trim().min(1, "El nombre es obligatorio").max(50),
+    apellido: z.string().trim().min(1, "El apellido es obligatorio").max(50),
+    correo: z.string().trim().email("Correo inválido").max(100).optional().or(z.literal("")),
+    telefono: z.string().trim().max(20).optional().or(z.literal("")),
+    contrasenaActual: z.string().optional().or(z.literal("")),
+    contrasenaNueva: z.string().optional().or(z.literal("")),
+    confirmarContrasena: z.string().optional().or(z.literal("")),
+  })
+  .superRefine((d, ctx) => {
+    const quiereCambiar = Boolean(d.contrasenaNueva || d.confirmarContrasena || d.contrasenaActual);
+    if (!quiereCambiar) return;
+    if (!d.contrasenaActual) {
+      ctx.addIssue({ code: "custom", path: ["contrasenaActual"], message: "Ingrese su contraseña actual" });
+    }
+    if (!d.contrasenaNueva || d.contrasenaNueva.length < 6) {
+      ctx.addIssue({ code: "custom", path: ["contrasenaNueva"], message: "Mínimo 6 caracteres" });
+    }
+    if (d.contrasenaNueva !== d.confirmarContrasena) {
+      ctx.addIssue({ code: "custom", path: ["confirmarContrasena"], message: "Las contraseñas no coinciden" });
+    }
+  });
 
 export type ActionResult<T = unknown> =
   | { ok: true; data?: T; message?: string }

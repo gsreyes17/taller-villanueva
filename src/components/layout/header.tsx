@@ -5,9 +5,11 @@ import { Clock as ClockIcon } from "lucide-react";
 
 export function Header() {
   return (
-    <header className="app-drag flex items-center justify-between border-b border-slate-200/70 bg-cream-soft/80 px-6 py-3 backdrop-blur">
-      <p className="text-lg font-semibold text-ink">Sistema de Gestión de Obras y Proyectos</p>
-      <div className="app-no-drag">
+    <header className="app-drag flex items-center justify-between gap-3 border-b border-slate-200/70 bg-cream-soft/80 px-6 py-3 backdrop-blur">
+      <p className="min-w-0 truncate text-base font-semibold text-ink sm:text-lg">
+        Sistema de Gestión de Obras y Proyectos
+      </p>
+      <div className="app-no-drag shrink-0">
         <Clock />
       </div>
     </header>

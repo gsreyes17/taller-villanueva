@@ -15,6 +15,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "db:smoke": "tsx scripts/smoke-triggers.ts",
     "dev:next": "next dev",
     "dev:electron": "wait-on tcp:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron .",
     "electron:dev": "concurrently -k -n next,electron -c blue,magenta \"npm:dev:next\" \"npm:dev:electron\"",

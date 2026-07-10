@@ -13,8 +13,10 @@ import {
   FileBarChart,
   Factory,
   LogOut,
+  Settings,
 } from "lucide-react";
 import { logoutAction } from "@/app/(auth)/actions";
+import { PerfilModal } from "@/components/layout/perfil-modal";
 import { cn, initials, rolLabel } from "@/lib/utils";
 import type { SessionUser } from "@/lib/auth";
 
@@ -31,6 +33,7 @@ const NAV = [
 export function Sidebar({ user }: { user: SessionUser }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [perfilOpen, setPerfilOpen] = useState(false);
 
   return (
     <aside
@@ -83,23 +86,36 @@ export function Sidebar({ user }: { user: SessionUser }) {
         )}
       </nav>
 
-      {/* Usuario + cerrar sesión */}
+      {/* Usuario (abre Mi Perfil) + cerrar sesión */}
       <div className="border-t border-white/10 p-3">
-        <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
+        <button
+          onClick={() => setPerfilOpen(true)}
+          title="Configurar mi perfil"
+          className={cn(
+            "group flex w-full items-center gap-3 rounded-lg p-1.5 text-left transition-colors hover:bg-sidebar-hover",
+            collapsed && "justify-center",
+          )}
+        >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-bold text-white">
             {initials(user.nombre, user.apellido)}
           </div>
           {!collapsed && (
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">
-                {user.nombre} {user.apellido}
-              </p>
-              <p className="truncate text-xs text-sidebar-muted">{rolLabel(user.rol)}</p>
-            </div>
+            <>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-white">
+                  {user.nombre} {user.apellido}
+                </p>
+                <p className="truncate text-xs text-sidebar-muted">{rolLabel(user.rol)}</p>
+              </div>
+              <Settings
+                size={16}
+                className="shrink-0 text-sidebar-muted transition-colors group-hover:text-white"
+              />
+            </>
           )}
-        </div>
+        </button>
 
-        <form action={logoutAction} className="mt-3">
+        <form action={logoutAction} className="mt-2">
           <button
             type="submit"
             title="Cerrar sesión"
@@ -113,6 +129,8 @@ export function Sidebar({ user }: { user: SessionUser }) {
           </button>
         </form>
       </div>
+
+      <PerfilModal open={perfilOpen} onClose={() => setPerfilOpen(false)} />
     </aside>
   );
 }
