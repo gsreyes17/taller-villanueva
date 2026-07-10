@@ -6,6 +6,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Card } from "@/components/ui/card";
 import { SearchInput } from "@/components/ui/search-input";
 import { formatCurrency, toNumber } from "@/lib/utils";
+import { publicUrlObras } from "@/lib/storage";
 import { ObrasManager, type ObraDTO, type ClienteOpt, type MaterialOpt } from "./obras-manager";
 import { EstadoObraFilter } from "./estado-filter";
 
@@ -35,6 +36,7 @@ export default async function ObrasPage({
           cliente: { select: { nombreRazonSocial: true } },
           presupuesto: { include: { detalles: true } },
           pagos: { select: { montoAbonado: true } },
+          archivos: { orderBy: { creadoEn: "desc" } },
         },
       }),
       prisma.cliente.findMany({
@@ -85,6 +87,13 @@ export default async function ObrasPage({
             })),
           }
         : null,
+      archivos: o.archivos.map((a) => ({
+        idArchivo: a.idArchivo,
+        nombre: a.nombre,
+        url: publicUrlObras(a.path),
+        tipoMime: a.tipoMime,
+        esImagen: (a.tipoMime ?? "").startsWith("image/"),
+      })),
     };
   });
 

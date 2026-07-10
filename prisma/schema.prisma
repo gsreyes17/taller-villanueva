@@ -118,6 +118,7 @@ model Usuario {
   pagosRegistrados      PagoObra[]
   movimientos           MovimientoInventario[]
   auditorias            Auditoria[]
+  archivosSubidos       ObraArchivo[]
 
   @@map("Usuarios")
 }
@@ -198,10 +199,28 @@ model Obra {
   presupuesto           Presupuesto?
   pagos                 PagoObra[]
   movimientos           MovimientoInventario[]
+  archivos              ObraArchivo[]
 
   @@index([idCliente])
   @@index([estadoObra])
   @@map("Obras")
+}
+
+model ObraArchivo {
+  idArchivo   Int      @id @default(autoincrement()) @map("id_archivo")
+  idObra      Int      @map("id_obra")
+  path        String   @db.VarChar(500) // ruta del objeto en el bucket de Storage
+  nombre      String   @db.VarChar(255) // nombre original del archivo
+  tipoMime    String?  @map("tipo_mime") @db.VarChar(100)
+  tamanoBytes Int?     @map("tamano_bytes")
+  subidoPor   Int?     @map("subido_por")
+  creadoEn    DateTime @default(now()) @map("creado_en") @db.Timestamptz
+
+  obra            Obra     @relation(fields: [idObra], references: [idObra], onDelete: Cascade, onUpdate: Cascade)
+  subidoPorUsuario Usuario? @relation(fields: [subidoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([idObra])
+  @@map("Obra_Archivos")
 }
 
 model Presupuesto {

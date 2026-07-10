@@ -3,7 +3,8 @@
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { Plus, Pencil, FileText, Trash2, HandCoins, X } from "lucide-react";
+import { Plus, Pencil, FileText, Trash2, HandCoins, X, Images } from "lucide-react";
+import { ArchivosModal, type ArchivoDTO } from "./archivos-modal";
 import {
   crearObra,
   actualizarObra,
@@ -40,6 +41,7 @@ export type ObraDTO = {
     margenGananciaPorcentaje: number;
     detalles: { idMaterial: number; cantidadRequerida: number; precioUnitarioMomento: number }[];
   } | null;
+  archivos: ArchivoDTO[];
 };
 
 export type ClienteOpt = { idCliente: number; nombreRazonSocial: string };
@@ -69,6 +71,10 @@ export function ObrasManager({
   const [avanceModal, setAvanceModal] = useState<ObraDTO | null>(null);
   const [presModal, setPresModal] = useState<ObraDTO | null>(null);
   const [pagoModal, setPagoModal] = useState<ObraDTO | null>(null);
+  const [archivosId, setArchivosId] = useState<number | null>(null);
+
+  // Se deriva de la lista fresca para que refleje archivos recién subidos.
+  const archivosObra = obras.find((o) => o.idObra === archivosId) ?? null;
 
   const refresh = () => router.refresh();
 
@@ -146,6 +152,9 @@ export function ObrasManager({
               <Button variant="secondary" size="sm" onClick={() => setPagoModal(o)}>
                 <HandCoins size={15} /> Pago
               </Button>
+              <Button variant="secondary" size="sm" onClick={() => setArchivosId(o.idObra)}>
+                <Images size={15} /> Bocetos{o.archivos.length ? ` (${o.archivos.length})` : ""}
+              </Button>
               <button
                 title="Editar obra"
                 onClick={() => setObraModal({ open: true, editing: o })}
@@ -185,6 +194,14 @@ export function ObrasManager({
       {pagoModal && (
         <PagoModal obra={pagoModal} onClose={() => setPagoModal(null)} onSaved={() => { setPagoModal(null); refresh(); }} />
       )}
+      <ArchivosModal
+        obra={
+          archivosObra
+            ? { idObra: archivosObra.idObra, nombreObra: archivosObra.nombreObra, archivos: archivosObra.archivos }
+            : null
+        }
+        onClose={() => setArchivosId(null)}
+      />
     </>
   );
 }

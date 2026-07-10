@@ -11,6 +11,13 @@ import {
   pagoSchema,
   type ActionResult,
 } from "@/lib/validations";
+import { getSupabaseAdmin, BUCKET_OBRAS } from "@/lib/supabase-admin";
+import {
+  ensureBucketObras,
+  sanitizeName,
+  MAX_ARCHIVO_BYTES,
+  TIPOS_PERMITIDOS,
+} from "@/lib/storage";
 
 export async function crearObra(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -214,6 +221,85 @@ export async function guardarPresupuesto(payload: {
     return { ok: true, message: `Presupuesto guardado. Monto total: ${montoTotal.toFixed(2)}.` };
   } catch {
     return { ok: false, error: "No se pudo guardar el presupuesto." };
+  }
+}
+
+/** Sube un boceto/plano (imagen o PDF) a Storage y lo asocia a la obra. */
+export async function subirArchivoObra(idObra: number, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: "Selecciona un archivo." };
+  }
+  if (file.size > MAX_ARCHIVO_BYTES) {
+    return { ok: false, error: "El archivo supera el límite de 15 MB." };
+  }
+  if (file.type && !TIPOS_PERMITIDOS.includes(file.type)) {
+    return { ok: false, error: "Formato no permitido. Usa una imagen (PNG/JPG/WEBP) o PDF." };
+  }
+
+  try {
+    await ensureBucketObras();
+    const sb = getSupabaseAdmin();
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const path = `${idObra}/${Date.now()}-${sanitizeName(file.name)}`;
+
+    const { error } = await sb.storage
+      .from(BUCKET_OBRAS)
+      .upload(path, bytes, { contentType: file.type || "application/octet-stream", upsert: false });
+    if (error) {
+      return { ok: false, error: "No se pudo subir el archivo a Storage." };
+    }
+
+    const archivo = await prisma.obraArchivo.create({
+      data: {
+        idObra,
+        path,
+        nombre: file.name,
+        tipoMime: file.type || null,
+        tamanoBytes: file.size,
+        subidoPor: user.sub,
+      },
+    });
+    await registrarAuditoria({
+      tabla: "Obra_Archivos",
+      idRegistro: archivo.idArchivo,
+      accion: "INSERT",
+      idUsuario: user.sub,
+      datosNuevos: { idObra, nombre: file.name },
+    });
+    revalidatePath("/obras");
+    return { ok: true, message: "Boceto subido." };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("Storage no configurado")) {
+      return { ok: false, error: "Storage no configurado (faltan variables de Supabase)." };
+    }
+    return { ok: false, error: "No se pudo subir el archivo." };
+  }
+}
+
+/** Elimina un boceto/plano de la obra (Storage + registro). */
+export async function eliminarArchivoObra(idArchivo: number): Promise<ActionResult> {
+  const user = await requireUser();
+  try {
+    const archivo = await prisma.obraArchivo.findUnique({ where: { idArchivo } });
+    if (!archivo) return { ok: false, error: "Archivo no encontrado." };
+
+    const sb = getSupabaseAdmin();
+    await sb.storage.from(BUCKET_OBRAS).remove([archivo.path]);
+    await prisma.obraArchivo.delete({ where: { idArchivo } });
+
+    await registrarAuditoria({
+      tabla: "Obra_Archivos",
+      idRegistro: idArchivo,
+      accion: "DELETE",
+      idUsuario: user.sub,
+    });
+    revalidatePath("/obras");
+    return { ok: true, message: "Archivo eliminado." };
+  } catch {
+    return { ok: false, error: "No se pudo eliminar el archivo." };
   }
 }
 

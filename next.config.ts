@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/**": ["./prisma/generated/**/*"],
   },
+  experimental: {
+    // Permite subir bocetos/planos (imágenes/PDF) vía Server Actions.
+    serverActions: { bodySizeLimit: "15mb" },
+  },
   eslint: {
     // No bloquear el build de Electron por lint; el lint se corre aparte.
     ignoreDuringBuilds: false,
