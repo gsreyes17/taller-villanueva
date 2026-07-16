@@ -14,6 +14,8 @@ import {
   Factory,
   LogOut,
   Settings,
+  Warehouse,
+  ShoppingCart,
 } from "lucide-react";
 import { logoutAction } from "@/app/(auth)/actions";
 import { PerfilModal } from "@/components/layout/perfil-modal";
@@ -26,6 +28,8 @@ const NAV = [
   { href: "/clientes", label: "Clientes", icon: Building2 },
   { href: "/obras", label: "Obras", icon: HardHat },
   { href: "/inventario", label: "Inventario", icon: Boxes },
+  { href: "/almacen", label: "Almacén", icon: Warehouse },
+  { href: "/compras", label: "Compras", icon: ShoppingCart },
   { href: "/precios", label: "Precios y Costos", icon: DollarSign },
   { href: "/reportes", label: "Reportes", icon: FileBarChart },
 ] as const;

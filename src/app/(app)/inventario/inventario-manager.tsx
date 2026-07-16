@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { Plus, ArrowDownToLine, ArrowUpFromLine, Pencil, Trash2 } from "lucide-react";
+import { Plus, ArrowDownToLine, ArrowUpFromLine, Pencil, Trash2, MapPin } from "lucide-react";
 import {
   crearMaterial,
   actualizarMaterial,
@@ -24,18 +24,41 @@ export type MaterialDTO = {
   codigoMaterial: string;
   nombre: string;
   descripcion: string | null;
-  categoria: string;
-  unidadMedida: string;
+  idCategoria: number;
+  categoriaNombre: string;
+  categoriaPadre: string | null;
+  idUnidad: number;
+  unidadSimbolo: string;
+  idUbicacion: number | null;
+  ubicacionLabel: string | null;
+  norma: string | null;
+  espesorMm: number | null;
+  medidas: string | null;
+  acabado: string | null;
+  pesoUnitario: number | null;
   stockActual: number;
   stockMinimo: number;
   stockMaximo: number | null;
   cupp: number;
-  areaAlmacen: string | null;
-  estanteNivel: string | null;
+  porcentajeMerma: number | null;
+  /** Merma que realmente se aplicará (propia o heredada de la categoría). */
+  mermaEfectiva: number;
   estado: string;
 };
 
-export function InventarioManager({ materiales }: { materiales: MaterialDTO[] }) {
+export type Catalogos = {
+  categorias: { idCategoria: number; nombre: string; padre: string | null; porcentajeMerma: number }[];
+  unidades: { idUnidad: number; simbolo: string; nombre: string }[];
+  ubicaciones: { idUbicacion: number; label: string }[];
+};
+
+export function InventarioManager({
+  materiales,
+  catalogos,
+}: {
+  materiales: MaterialDTO[];
+  catalogos: Catalogos;
+}) {
   const router = useRouter();
   const [matModal, setMatModal] = useState<{ open: boolean; editing: MaterialDTO | null }>({
     open: false,
@@ -76,9 +99,9 @@ export function InventarioManager({ materiales }: { materiales: MaterialDTO[] })
             <tr>
               <Th>Código</Th>
               <Th>Material</Th>
-              <Th>Categoría</Th>
+              <Th>Clasificación</Th>
+              <Th>Ubicación</Th>
               <Th>Stock</Th>
-              <Th>Stock Mín.</Th>
               <Th>CUPP</Th>
               <Th>Valorización</Th>
               <Th>Estado</Th>
@@ -94,15 +117,32 @@ export function InventarioManager({ materiales }: { materiales: MaterialDTO[] })
                   <Td className="font-medium text-ink">{m.codigoMaterial}</Td>
                   <Td>
                     <p className="font-semibold text-ink">{m.nombre}</p>
-                    {m.descripcion && <p className="text-xs text-muted">{m.descripcion}</p>}
+                    <p className="text-xs text-muted">
+                      {[m.norma, m.medidas, m.espesorMm ? `${m.espesorMm} mm` : null, m.acabado]
+                        .filter(Boolean)
+                        .join(" · ") || m.descripcion || "—"}
+                    </p>
                   </Td>
                   <Td>
-                    <Badge tone="gray">{m.categoria}</Badge>
+                    <Badge tone="gray">{m.categoriaNombre}</Badge>
+                    {m.categoriaPadre && (
+                      <p className="mt-0.5 text-[11px] text-muted">{m.categoriaPadre}</p>
+                    )}
+                  </Td>
+                  <Td>
+                    {m.ubicacionLabel ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-ink">
+                        <MapPin size={12} className="text-brand" />
+                        {m.ubicacionLabel}
+                      </span>
+                    ) : (
+                      <Badge tone="amber">Sin ubicar</Badge>
+                    )}
                   </Td>
                   <Td className={isLow(m) ? "font-semibold text-red-600" : "text-ink"}>
-                    {formatNumber(m.stockActual)} {m.unidadMedida}
+                    {formatNumber(m.stockActual)} {m.unidadSimbolo}
+                    <span className="block text-[11px] text-muted">mín. {formatNumber(m.stockMinimo)}</span>
                   </Td>
-                  <Td className="text-muted">{formatNumber(m.stockMinimo)}</Td>
                   <Td className="text-ink">{formatCurrency(m.cupp)}</Td>
                   <Td className="text-ink">{formatCurrency(m.stockActual * m.cupp)}</Td>
                   <Td>
@@ -143,6 +183,7 @@ export function InventarioManager({ materiales }: { materiales: MaterialDTO[] })
         key={matModal.editing?.idMaterial ?? "new-mat"}
         open={matModal.open}
         material={matModal.editing}
+        catalogos={catalogos}
         onClose={() => setMatModal({ open: false, editing: null })}
         onSaved={() => {
           setMatModal({ open: false, editing: null });
@@ -168,19 +209,27 @@ export function InventarioManager({ materiales }: { materiales: MaterialDTO[] })
 function MaterialModal({
   open,
   material,
+  catalogos,
   onClose,
   onSaved,
 }: {
   open: boolean;
   material: MaterialDTO | null;
+  catalogos: Catalogos;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const action = material ? actualizarMaterial : crearMaterial;
   const [state, formAction] = useActionState<ActionResult | null, FormData>(action, null);
+  const [idCategoria, setIdCategoria] = useState<string>(String(material?.idCategoria ?? ""));
   useEffect(() => {
     if (state?.ok) onSaved();
   }, [state, onSaved]);
+
+  // Merma que se hereda si el material no define la suya.
+  const mermaCategoria = catalogos.categorias.find(
+    (c) => String(c.idCategoria) === idCategoria,
+  )?.porcentajeMerma;
 
   return (
     <Modal
@@ -202,25 +251,82 @@ function MaterialModal({
             <Input name="codigoMaterial" defaultValue={material?.codigoMaterial} placeholder="PER-001" />
           </Field>
           <Field label="Nombre" required error={fe(state, "nombre")}>
-            <Input name="nombre" defaultValue={material?.nombre} placeholder="Perfil C 6x2" />
+            <Input name="nombre" defaultValue={material?.nombre} placeholder='Perfil C 6"x2" x 3mm' />
           </Field>
         </div>
         <Field label="Descripción">
           <Textarea name="descripcion" defaultValue={material?.descripcion ?? ""} />
         </Field>
+
+        <h3 className="text-base font-semibold text-ink">Clasificación</h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Field label="Categoría" required error={fe(state, "categoria")}>
-            <Input name="categoria" defaultValue={material?.categoria} placeholder="Perfiles" list="categorias-mat" />
+          <Field label="Categoría" required error={fe(state, "idCategoria")}>
+            <Select
+              name="idCategoria"
+              value={idCategoria}
+              onChange={(e) => setIdCategoria(e.target.value)}
+            >
+              <option value="">Seleccionar...</option>
+              {catalogos.categorias.map((c) => (
+                <option key={c.idCategoria} value={c.idCategoria}>
+                  {c.padre ? `${c.padre} › ${c.nombre}` : c.nombre}
+                </option>
+              ))}
+            </Select>
           </Field>
-          <Field label="Unidad Medida" required error={fe(state, "unidadMedida")}>
-            <Input name="unidadMedida" defaultValue={material?.unidadMedida} placeholder="Metro" />
+          <Field label="Unidad de medida" required error={fe(state, "idUnidad")}>
+            <Select name="idUnidad" defaultValue={material?.idUnidad ?? ""}>
+              <option value="">Seleccionar...</option>
+              {catalogos.unidades.map((u) => (
+                <option key={u.idUnidad} value={u.idUnidad}>
+                  {u.nombre} ({u.simbolo})
+                </option>
+              ))}
+            </Select>
           </Field>
-          <Field label="CUPP" hint="Costo unitario promedio">
-            <Input name="cupp" type="number" step="0.01" min="0" defaultValue={material?.cupp ?? 0} />
+          <Field label="Ubicación en almacén" hint="Dónde se guarda en el local">
+            <Select name="idUbicacion" defaultValue={material?.idUbicacion ?? ""}>
+              <option value="">— Sin ubicar —</option>
+              {catalogos.ubicaciones.map((u) => (
+                <option key={u.idUbicacion} value={u.idUbicacion}>
+                  {u.label}
+                </option>
+              ))}
+            </Select>
           </Field>
         </div>
 
-        <h3 className="text-base font-semibold text-ink">Control de Stock</h3>
+        <h3 className="text-base font-semibold text-ink">Especificaciones técnicas</h3>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <Field label="Norma / Calidad" hint="Ej: ASTM A36">
+            <Input name="norma" defaultValue={material?.norma ?? ""} list="normas-mat" />
+          </Field>
+          <Field label="Medidas" hint="Ej: 4'x8', 6&quot;x2&quot;">
+            <Input name="medidas" defaultValue={material?.medidas ?? ""} />
+          </Field>
+          <Field label="Espesor (mm)" error={fe(state, "espesorMm")}>
+            <Input name="espesorMm" type="number" step="0.01" min="0" defaultValue={material?.espesorMm ?? ""} />
+          </Field>
+          <Field label="Acabado" hint="Ej: Negro, Galvanizado">
+            <Input name="acabado" defaultValue={material?.acabado ?? ""} list="acabados-mat" />
+          </Field>
+          <Field label="Peso unitario" hint="kg por unidad de medida" error={fe(state, "pesoUnitario")}>
+            <Input name="pesoUnitario" type="number" step="0.001" min="0" defaultValue={material?.pesoUnitario ?? ""} />
+          </Field>
+          <Field
+            label="Merma propia (%)"
+            hint={
+              mermaCategoria != null
+                ? `Vacío = hereda ${mermaCategoria}% de la categoría`
+                : "Vacío = hereda la merma de la categoría"
+            }
+            error={fe(state, "porcentajeMerma")}
+          >
+            <Input name="porcentajeMerma" type="number" step="0.01" min="0" max="100" defaultValue={material?.porcentajeMerma ?? ""} />
+          </Field>
+        </div>
+
+        <h3 className="text-base font-semibold text-ink">Stock y costo</h3>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {!material && (
             <Field label="Stock Actual" hint="Saldo de apertura">
@@ -230,8 +336,11 @@ function MaterialModal({
           <Field label="Stock Mínimo" required error={fe(state, "stockMinimo")}>
             <Input name="stockMinimo" type="number" step="0.01" min="0" defaultValue={material?.stockMinimo ?? 10} />
           </Field>
-          <Field label="Stock Máximo">
+          <Field label="Stock Máximo" error={fe(state, "stockMaximo")}>
             <Input name="stockMaximo" type="number" step="0.01" min="0" defaultValue={material?.stockMaximo ?? ""} />
+          </Field>
+          <Field label="CUPP (S/)" hint={material ? "Se recalcula al recibir compras" : "Costo inicial"}>
+            <Input name="cupp" type="number" step="0.01" min="0" defaultValue={material?.cupp ?? 0} />
           </Field>
           {material && (
             <Field label="Estado">
@@ -242,17 +351,24 @@ function MaterialModal({
             </Field>
           )}
         </div>
-
-        <h3 className="text-base font-semibold text-ink">Ubicación</h3>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Field label="Área de almacén">
-            <Input name="areaAlmacen" defaultValue={material?.areaAlmacen ?? ""} placeholder="Zona A" />
-          </Field>
-          <Field label="Estante / Nivel">
-            <Input name="estanteNivel" defaultValue={material?.estanteNivel ?? ""} />
-          </Field>
-        </div>
         {!material && <input type="hidden" name="estado" value="Activo" />}
+
+        <datalist id="normas-mat">
+          <option value="ASTM A36" />
+          <option value="ASTM A500" />
+          <option value="ASTM A53" />
+          <option value="AISI 304" />
+          <option value="AISI 316" />
+          <option value="AWS E6011" />
+          <option value="AWS E7018" />
+        </datalist>
+        <datalist id="acabados-mat">
+          <option value="Negro" />
+          <option value="Galvanizado" />
+          <option value="Inoxidable" />
+          <option value="Pintado" />
+          <option value="Cromado" />
+        </datalist>
 
         <div className="flex justify-end gap-3 border-t border-slate-200/70 pt-4">
           <Button type="button" variant="secondary" onClick={onClose}>
@@ -317,7 +433,7 @@ function MovimientoModal({
               .filter((m) => m.estado === "Activo")
               .map((m) => (
                 <option key={m.idMaterial} value={m.idMaterial}>
-                  {m.codigoMaterial} — {m.nombre} (stock: {formatNumber(m.stockActual)} {m.unidadMedida})
+                  {m.codigoMaterial} — {m.nombre} (stock: {formatNumber(m.stockActual)} {m.unidadSimbolo})
                 </option>
               ))}
           </Select>
@@ -325,7 +441,13 @@ function MovimientoModal({
 
         {seleccionado && (
           <p className="rounded-lg bg-cream px-3 py-2 text-sm text-muted">
-            Stock actual: <strong className="text-ink">{formatNumber(seleccionado.stockActual)} {seleccionado.unidadMedida}</strong>
+            Stock actual:{" "}
+            <strong className="text-ink">
+              {formatNumber(seleccionado.stockActual)} {seleccionado.unidadSimbolo}
+            </strong>
+            {seleccionado.ubicacionLabel && (
+              <span className="ml-2 text-xs">· Ubicación: {seleccionado.ubicacionLabel}</span>
+            )}
           </p>
         )}
 

@@ -3,7 +3,20 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Select } from "@/components/ui/field";
 
-export function CategoriaFilter({ categorias }: { categorias: string[] }) {
+export type CategoriaOpt = {
+  idCategoria: number;
+  nombre: string;
+  padre: string | null;
+  porcentajeMerma: number;
+};
+
+export function CategoriaFilter({
+  categorias,
+  zonas,
+}: {
+  categorias: CategoriaOpt[];
+  zonas: string[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -16,16 +29,28 @@ export function CategoriaFilter({ categorias }: { categorias: string[] }) {
   }
 
   return (
-    <div className="flex gap-3">
+    <div className="flex flex-wrap gap-3">
       <Select
         defaultValue={params.get("cat") ?? "todos"}
         onChange={(e) => setParam("cat", e.target.value)}
-        className="min-w-40"
+        className="min-w-48"
       >
         <option value="todos">Todas las categorías</option>
         {categorias.map((c) => (
-          <option key={c} value={c}>
-            {c}
+          <option key={c.idCategoria} value={c.idCategoria}>
+            {c.padre ? `${c.padre} › ${c.nombre}` : c.nombre}
+          </option>
+        ))}
+      </Select>
+      <Select
+        defaultValue={params.get("zona") ?? "todos"}
+        onChange={(e) => setParam("zona", e.target.value)}
+        className="min-w-40"
+      >
+        <option value="todos">Todas las zonas</option>
+        {zonas.map((z) => (
+          <option key={z} value={z}>
+            {z}
           </option>
         ))}
       </Select>

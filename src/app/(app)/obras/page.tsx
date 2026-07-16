@@ -37,6 +37,13 @@ export default async function ObrasPage({
           presupuesto: { include: { detalles: true } },
           pagos: { select: { montoAbonado: true } },
           archivos: { orderBy: { creadoEn: "desc" } },
+          manoObra: { include: { usuario: { select: { nombre: true, apellido: true } } }, orderBy: { fecha: "desc" } },
+          costosIndirectos: { orderBy: { fecha: "desc" } },
+          // Salidas de material = costo real de materiales consumidos.
+          movimientos: {
+            where: { tipoMovimiento: "Salida" },
+            select: { cantidad: true, costoUnitario: true },
+          },
         },
       }),
       prisma.cliente.findMany({
@@ -46,7 +53,15 @@ export default async function ObrasPage({
       }),
       prisma.material.findMany({
         where: { estado: "Activo" },
-        select: { idMaterial: true, codigoMaterial: true, nombre: true, cupp: true, unidadMedida: true },
+        select: {
+          idMaterial: true,
+          codigoMaterial: true,
+          nombre: true,
+          cupp: true,
+          porcentajeMerma: true,
+          unidad: { select: { simbolo: true } },
+          categoria: { select: { porcentajeMerma: true } },
+        },
         orderBy: { codigoMaterial: "asc" },
       }),
       prisma.obra.count({ where: { estadoObra: "Presupuestando" } }),
@@ -80,6 +95,7 @@ export default async function ObrasPage({
         ? {
             costoManoObra: toNumber(o.presupuesto.costoManoObra),
             margenGananciaPorcentaje: toNumber(o.presupuesto.margenGananciaPorcentaje),
+            igvPorcentaje: toNumber(o.presupuesto.igvPorcentaje),
             detalles: o.presupuesto.detalles.map((d) => ({
               idMaterial: d.idMaterial,
               cantidadRequerida: toNumber(d.cantidadRequerida),
@@ -94,6 +110,27 @@ export default async function ObrasPage({
         tipoMime: a.tipoMime,
         esImagen: (a.tipoMime ?? "").startsWith("image/"),
       })),
+      // --- Costeo real ---
+      manoObra: o.manoObra.map((h) => ({
+        idManoObra: h.idManoObra,
+        descripcion: h.descripcion,
+        fecha: h.fecha.toISOString(),
+        horas: toNumber(h.horas),
+        tarifaHora: toNumber(h.tarifaHora),
+        costo: toNumber(h.horas) * toNumber(h.tarifaHora),
+        trabajador: h.usuario ? `${h.usuario.nombre} ${h.usuario.apellido}` : null,
+      })),
+      costosIndirectos: o.costosIndirectos.map((c) => ({
+        idCostoIndirecto: c.idCostoIndirecto,
+        tipo: c.tipo,
+        descripcion: c.descripcion,
+        fecha: c.fecha.toISOString(),
+        monto: toNumber(c.monto),
+      })),
+      costoMaterialesReal: o.movimientos.reduce(
+        (s, m) => s + toNumber(m.cantidad) * toNumber(m.costoUnitario),
+        0,
+      ),
     };
   });
 
@@ -103,7 +140,9 @@ export default async function ObrasPage({
     codigoMaterial: m.codigoMaterial,
     nombre: m.nombre,
     cupp: toNumber(m.cupp),
-    unidadMedida: m.unidadMedida,
+    unidadMedida: m.unidad.simbolo,
+    // Refleja la misma regla que aplica el trigger: propia o heredada.
+    mermaEfectiva: toNumber(m.porcentajeMerma ?? m.categoria.porcentajeMerma),
   }));
 
   return (

@@ -7,6 +7,7 @@ import {
   ShoppingCart,
   Users,
   FileText,
+  Percent,
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { Card, CardBody } from "@/components/ui/card";
@@ -59,7 +60,7 @@ const financieros: ReporteDef[] = [
   {
     tipo: "compras",
     titulo: "Reporte de Compras",
-    descripcion: "Entradas de material y costos",
+    descripcion: "Compras recibidas por proveedor y período",
     icon: <ShoppingCart size={22} />,
     iconWrap: "bg-blue-50 text-blue-600",
   },
@@ -69,6 +70,13 @@ const financieros: ReporteDef[] = [
     descripcion: "Estado de cobranza por obra",
     icon: <Users size={22} />,
     iconWrap: "bg-emerald-50 text-emerald-600",
+  },
+  {
+    tipo: "rentabilidad",
+    titulo: "Reporte de Rentabilidad",
+    descripcion: "Margen real por obra: presupuesto vs costo total",
+    icon: <Percent size={22} />,
+    iconWrap: "bg-violet-50 text-violet-600",
   },
 ];
 
@@ -135,7 +143,7 @@ export default async function ReportesPage() {
 
       <section>
         <h2 className="mb-4 text-lg font-semibold text-ink">Reportes Financieros</h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {financieros.map((def) => (
             <ReportCard
               key={def.tipo}

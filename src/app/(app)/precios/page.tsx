@@ -25,19 +25,23 @@ export default async function PreciosPage({
           ],
         }
       : {}),
-    ...(cat ? { categoria: cat } : {}),
+    ...(cat ? { categoria: { nombre: cat } } : {}),
   };
 
   const [materialesRaw, categoriasRaw] = await Promise.all([
-    prisma.material.findMany({ where, orderBy: { nombre: "asc" } }),
     prisma.material.findMany({
-      distinct: ["categoria"],
-      orderBy: { categoria: "asc" },
-      select: { categoria: true },
+      where,
+      include: { categoria: true, unidad: true },
+      orderBy: { nombre: "asc" },
+    }),
+    prisma.categoria.findMany({
+      where: { estado: "Activo" },
+      orderBy: { nombre: "asc" },
+      select: { nombre: true },
     }),
   ]);
 
-  const categorias = categoriasRaw.map((c) => c.categoria);
+  const categorias = categoriasRaw.map((c) => c.nombre);
 
   const materiales: MaterialDTO[] = materialesRaw.map((m) => {
     const stockActual = toNumber(m.stockActual);
@@ -47,8 +51,8 @@ export default async function PreciosPage({
       idMaterial: m.idMaterial,
       codigoMaterial: m.codigoMaterial,
       nombre: m.nombre,
-      categoria: m.categoria,
-      unidadMedida: m.unidadMedida,
+      categoria: m.categoria.nombre,
+      unidadMedida: m.unidad.simbolo,
       stockActual,
       stockMinimo,
       cupp,

@@ -3,8 +3,9 @@
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
-import { Plus, Pencil, FileText, Trash2, HandCoins, X, Images } from "lucide-react";
+import { Plus, Pencil, FileText, Trash2, HandCoins, X, Images, Calculator } from "lucide-react";
 import { ArchivosModal, type ArchivoDTO } from "./archivos-modal";
+import { CosteoModal } from "./costeo-modal";
 import {
   crearObra,
   actualizarObra,
@@ -39,9 +40,32 @@ export type ObraDTO = {
   presupuesto: {
     costoManoObra: number;
     margenGananciaPorcentaje: number;
+    igvPorcentaje: number;
     detalles: { idMaterial: number; cantidadRequerida: number; precioUnitarioMomento: number }[];
   } | null;
   archivos: ArchivoDTO[];
+  manoObra: ManoObraDTO[];
+  costosIndirectos: CostoIndirectoDTO[];
+  /** Suma de las salidas de material imputadas a la obra (costo real). */
+  costoMaterialesReal: number;
+};
+
+export type ManoObraDTO = {
+  idManoObra: number;
+  descripcion: string | null;
+  fecha: string;
+  horas: number;
+  tarifaHora: number;
+  costo: number;
+  trabajador: string | null;
+};
+
+export type CostoIndirectoDTO = {
+  idCostoIndirecto: number;
+  tipo: string;
+  descripcion: string | null;
+  fecha: string;
+  monto: number;
 };
 
 export type ClienteOpt = { idCliente: number; nombreRazonSocial: string };
@@ -51,6 +75,8 @@ export type MaterialOpt = {
   nombre: string;
   cupp: number;
   unidadMedida: string;
+  /** Merma que aplicará la BD (propia del material o heredada de su categoría). */
+  mermaEfectiva: number;
 };
 
 export function estadoLabel(estado: string): string {
@@ -72,9 +98,11 @@ export function ObrasManager({
   const [presModal, setPresModal] = useState<ObraDTO | null>(null);
   const [pagoModal, setPagoModal] = useState<ObraDTO | null>(null);
   const [archivosId, setArchivosId] = useState<number | null>(null);
+  const [costeoId, setCosteoId] = useState<number | null>(null);
 
-  // Se deriva de la lista fresca para que refleje archivos recién subidos.
+  // Se derivan de la lista fresca para reflejar los datos recién guardados.
   const archivosObra = obras.find((o) => o.idObra === archivosId) ?? null;
+  const costeoObra = obras.find((o) => o.idObra === costeoId) ?? null;
 
   const refresh = () => router.refresh();
 
@@ -155,6 +183,9 @@ export function ObrasManager({
               <Button variant="secondary" size="sm" onClick={() => setArchivosId(o.idObra)}>
                 <Images size={15} /> Bocetos{o.archivos.length ? ` (${o.archivos.length})` : ""}
               </Button>
+              <Button variant="secondary" size="sm" onClick={() => setCosteoId(o.idObra)}>
+                <Calculator size={15} /> Costeo
+              </Button>
               <button
                 title="Editar obra"
                 onClick={() => setObraModal({ open: true, editing: o })}
@@ -202,6 +233,7 @@ export function ObrasManager({
         }
         onClose={() => setArchivosId(null)}
       />
+      <CosteoModal obra={costeoObra} onClose={() => setCosteoId(null)} />
     </>
   );
 }
@@ -362,6 +394,7 @@ function PresupuestoModal({
   );
   const [manoObra, setManoObra] = useState(String(obra.presupuesto?.costoManoObra ?? 0));
   const [margen, setMargen] = useState(String(obra.presupuesto?.margenGananciaPorcentaje ?? 0));
+  const [igvPct, setIgvPct] = useState(String(obra.presupuesto?.igvPorcentaje ?? 18));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -375,10 +408,20 @@ function PresupuestoModal({
     setFilas((f) => f.filter((_, idx) => idx !== i));
   }
 
+  // Vista previa de los importes. La BD los recalcula al guardar con la misma
+  // fórmula (merma ponderada por material + IGV), así que deben coincidir.
+  const r2 = (n: number) => Math.round(n * 100) / 100;
   const base = filas.reduce((s, f) => s + (Number(f.cantidad) || 0) * (Number(f.precio) || 0), 0);
-  const mermas = Math.round(base * 0.06 * 100) / 100;
-  const subtotal = base + mermas + (Number(manoObra) || 0);
-  const total = Math.round(subtotal * (1 + (Number(margen) || 0) / 100) * 100) / 100;
+  const mermas = r2(
+    filas.reduce((s, f) => {
+      const importe = (Number(f.cantidad) || 0) * (Number(f.precio) || 0);
+      const merma = materiales.find((m) => String(m.idMaterial) === f.idMaterial)?.mermaEfectiva ?? 0;
+      return s + (importe * merma) / 100;
+    }, 0),
+  );
+  const subtotal = r2((base + mermas + (Number(manoObra) || 0)) * (1 + (Number(margen) || 0) / 100));
+  const igv = r2(subtotal * (Number(igvPct) || 0) / 100);
+  const total = r2(subtotal + igv);
 
   async function submit() {
     setError(null);
@@ -398,6 +441,7 @@ function PresupuestoModal({
       idObra: obra.idObra,
       costoManoObra: Number(manoObra) || 0,
       margenGananciaPorcentaje: Number(margen) || 0,
+      igvPorcentaje: Number(igvPct) || 18,
       detalles,
     });
     setSaving(false);
@@ -455,24 +499,35 @@ function PresupuestoModal({
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 border-t border-slate-200/70 pt-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 border-t border-slate-200/70 pt-4 md:grid-cols-3">
           <Field label="Costo de mano de obra (S/)">
             <Input type="number" step="0.01" min="0" value={manoObra} onChange={(e) => setManoObra(e.target.value)} />
           </Field>
           <Field label="Margen de ganancia (%)">
             <Input type="number" step="0.01" min="0" value={margen} onChange={(e) => setMargen(e.target.value)} />
           </Field>
+          <Field label="IGV (%)" hint="18% estándar en Perú">
+            <Input type="number" step="0.01" min="0" max="100" value={igvPct} onChange={(e) => setIgvPct(e.target.value)} />
+          </Field>
         </div>
 
         <div className="rounded-xl bg-cream px-4 py-3 text-sm">
           <Row label="Costo de materiales (base)" value={formatCurrency(base)} />
-          <Row label="Mermas (6% automático)" value={formatCurrency(mermas)} />
+          <Row label="Mermas (según cada material)" value={formatCurrency(mermas)} />
           <Row label="Mano de obra" value={formatCurrency(Number(manoObra) || 0)} />
-          <Row label={`Margen (${margen || 0}%)`} value={formatCurrency(total - subtotal)} />
+          <Row label={`Margen (${margen || 0}%)`} value={formatCurrency(subtotal - (base + mermas + (Number(manoObra) || 0)))} />
+          <div className="mt-1 flex justify-between border-t border-slate-300/40 pt-1 font-medium text-ink">
+            <span>Subtotal</span>
+            <span>{formatCurrency(subtotal)}</span>
+          </div>
+          <Row label={`IGV (${igvPct || 0}%)`} value={formatCurrency(igv)} />
           <div className="mt-2 flex justify-between border-t border-slate-300/60 pt-2 text-base font-bold text-ink">
             <span>Monto Total</span>
             <span>{formatCurrency(total)}</span>
           </div>
+          <p className="mt-2 text-[11px] text-muted">
+            La merma se calcula con el % real de cada material (o el de su categoría).
+          </p>
         </div>
 
         <div className="flex justify-end gap-3 border-t border-slate-200/70 pt-4">

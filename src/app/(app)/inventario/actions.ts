@@ -11,16 +11,43 @@ function parseMaterial(formData: FormData) {
     codigoMaterial: formData.get("codigoMaterial"),
     nombre: formData.get("nombre"),
     descripcion: formData.get("descripcion") || undefined,
-    categoria: formData.get("categoria"),
-    unidadMedida: formData.get("unidadMedida"),
+    idCategoria: formData.get("idCategoria"),
+    idUnidad: formData.get("idUnidad"),
+    idUbicacion: formData.get("idUbicacion") || undefined,
+    norma: formData.get("norma") || undefined,
+    espesorMm: formData.get("espesorMm") || undefined,
+    medidas: formData.get("medidas") || undefined,
+    acabado: formData.get("acabado") || undefined,
+    pesoUnitario: formData.get("pesoUnitario") || undefined,
     stockActual: formData.get("stockActual") || 0,
     stockMinimo: formData.get("stockMinimo") || 0,
     stockMaximo: formData.get("stockMaximo") || undefined,
     cupp: formData.get("cupp") || 0,
-    areaAlmacen: formData.get("areaAlmacen") || undefined,
-    estanteNivel: formData.get("estanteNivel") || undefined,
+    porcentajeMerma: formData.get("porcentajeMerma") || undefined,
     estado: formData.get("estado") || "Activo",
   });
+}
+
+/** Campos comunes de escritura (excepto stockActual, que solo cambia vía kardex). */
+function materialData(d: ReturnType<typeof materialSchema.parse>) {
+  return {
+    codigoMaterial: d.codigoMaterial,
+    nombre: d.nombre,
+    descripcion: d.descripcion || null,
+    idCategoria: d.idCategoria,
+    idUnidad: d.idUnidad,
+    idUbicacion: d.idUbicacion ?? null,
+    norma: d.norma || null,
+    espesorMm: d.espesorMm ?? null,
+    medidas: d.medidas || null,
+    acabado: d.acabado || null,
+    pesoUnitario: d.pesoUnitario ?? null,
+    stockMinimo: d.stockMinimo,
+    stockMaximo: d.stockMaximo ?? null,
+    cupp: d.cupp,
+    porcentajeMerma: d.porcentajeMerma ?? null,
+    estado: d.estado,
+  };
 }
 
 export async function crearMaterial(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
@@ -33,18 +60,8 @@ export async function crearMaterial(_prev: ActionResult | null, formData: FormDa
   try {
     const material = await prisma.material.create({
       data: {
-        codigoMaterial: d.codigoMaterial,
-        nombre: d.nombre,
-        descripcion: d.descripcion || null,
-        categoria: d.categoria,
-        unidadMedida: d.unidadMedida,
+        ...materialData(d),
         stockActual: d.stockActual, // saldo inicial de apertura
-        stockMinimo: d.stockMinimo,
-        stockMaximo: d.stockMaximo ?? null,
-        cupp: d.cupp,
-        areaAlmacen: d.areaAlmacen || null,
-        estanteNivel: d.estanteNivel || null,
-        estado: d.estado,
       },
     });
     await registrarAuditoria({
@@ -77,19 +94,7 @@ export async function actualizarMaterial(_prev: ActionResult | null, formData: F
     // NO se actualiza stockActual directamente: el stock solo cambia vía movimientos (kardex).
     await prisma.material.update({
       where: { idMaterial: id },
-      data: {
-        codigoMaterial: d.codigoMaterial,
-        nombre: d.nombre,
-        descripcion: d.descripcion || null,
-        categoria: d.categoria,
-        unidadMedida: d.unidadMedida,
-        stockMinimo: d.stockMinimo,
-        stockMaximo: d.stockMaximo ?? null,
-        cupp: d.cupp,
-        areaAlmacen: d.areaAlmacen || null,
-        estanteNivel: d.estanteNivel || null,
-        estado: d.estado,
-      },
+      data: materialData(d),
     });
     await registrarAuditoria({ tabla: "Materiales", idRegistro: id, accion: "UPDATE", idUsuario: user.sub });
     revalidatePath("/inventario");

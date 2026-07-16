@@ -127,7 +127,7 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-ink">
-          {saludoHora()}, {user.nombre} 👋
+          {saludoHora()}, {user.nombre}
         </h1>
         <p className="mt-1 text-sm capitalize text-muted">{fechaLarga}</p>
       </div>

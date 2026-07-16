@@ -9,6 +9,8 @@ import {
   avanceSchema,
   presupuestoSchema,
   pagoSchema,
+  manoObraSchema,
+  costoIndirectoSchema,
   type ActionResult,
 } from "@/lib/validations";
 import { getSupabaseAdmin, BUCKET_OBRAS } from "@/lib/supabase-admin";
@@ -148,6 +150,7 @@ export async function guardarPresupuesto(payload: {
   idObra: number;
   costoManoObra: number;
   margenGananciaPorcentaje: number;
+  igvPorcentaje?: number;
   detalles: { idMaterial: number; cantidadRequerida: number; precioUnitarioMomento: number }[];
 }): Promise<ActionResult> {
   const user = await requireUser();
@@ -157,70 +160,176 @@ export async function guardarPresupuesto(payload: {
   }
   const d = parsed.data;
 
-  const costoMaterialesBase = d.detalles.reduce(
-    (s, x) => s + x.cantidadRequerida * x.precioUnitarioMomento,
-    0,
-  );
-  const costoMermas = Math.round(costoMaterialesBase * 0.06 * 100) / 100; // 6% (igual que el trigger)
-  const subtotal = costoMaterialesBase + costoMermas + d.costoManoObra;
-  const montoTotal = Math.round(subtotal * (1 + d.margenGananciaPorcentaje / 100) * 100) / 100;
-
+  // Los importes (base, mermas ponderadas por material, subtotal, IGV y total)
+  // los calcula el trigger `fn_presupuesto_recalcular` al tocar el detalle.
+  // La app no duplica esa aritmética: la BD es la única fuente de verdad.
   let eraExistente = false;
+  let idPresupuesto = 0;
   try {
     await prisma.$transaction(async (tx) => {
       const existente = await tx.presupuesto.findUnique({ where: { idObra: d.idObra } });
       eraExistente = Boolean(existente);
+      const detalles = {
+        create: d.detalles.map((x) => ({
+          idMaterial: x.idMaterial,
+          cantidadRequerida: x.cantidadRequerida,
+          precioUnitarioMomento: x.precioUnitarioMomento,
+        })),
+      };
       if (existente) {
         await tx.detallePresupuesto.deleteMany({ where: { idPresupuesto: existente.idPresupuesto } });
         await tx.presupuesto.update({
           where: { idPresupuesto: existente.idPresupuesto },
           data: {
             costoManoObra: d.costoManoObra,
-            costoMaterialesBase, // el trigger recalcula costo_mermas
             margenGananciaPorcentaje: d.margenGananciaPorcentaje,
-            montoTotal,
-            detalles: {
-              create: d.detalles.map((x) => ({
-                idMaterial: x.idMaterial,
-                cantidadRequerida: x.cantidadRequerida,
-                precioUnitarioMomento: x.precioUnitarioMomento,
-              })),
-            },
+            igvPorcentaje: d.igvPorcentaje,
+            detalles,
           },
         });
+        idPresupuesto = existente.idPresupuesto;
       } else {
-        await tx.presupuesto.create({
+        const creado = await tx.presupuesto.create({
           data: {
             idObra: d.idObra,
             costoManoObra: d.costoManoObra,
-            costoMaterialesBase,
-            costoMermas,
             margenGananciaPorcentaje: d.margenGananciaPorcentaje,
-            montoTotal,
+            igvPorcentaje: d.igvPorcentaje,
             fechaCreacion: new Date(),
             creadoPor: user.sub,
-            detalles: {
-              create: d.detalles.map((x) => ({
-                idMaterial: x.idMaterial,
-                cantidadRequerida: x.cantidadRequerida,
-                precioUnitarioMomento: x.precioUnitarioMomento,
-              })),
-            },
+            detalles,
           },
         });
+        idPresupuesto = creado.idPresupuesto;
       }
     });
+
+    const final = await prisma.presupuesto.findUnique({ where: { idPresupuesto } });
     await registrarAuditoria({
       tabla: "Presupuestos",
       idRegistro: d.idObra,
       accion: eraExistente ? "UPDATE" : "INSERT",
       idUsuario: user.sub,
-      datosNuevos: { montoTotal, costoMaterialesBase, costoMermas },
+      datosNuevos: {
+        montoTotal: String(final?.montoTotal),
+        costoMermas: String(final?.costoMermas),
+      },
     });
     revalidatePath("/obras");
-    return { ok: true, message: `Presupuesto guardado. Monto total: ${montoTotal.toFixed(2)}.` };
+    return { ok: true, message: `Presupuesto guardado. Total con IGV: S/ ${final?.montoTotal ?? 0}.` };
   } catch {
     return { ok: false, error: "No se pudo guardar el presupuesto." };
+  }
+}
+
+// ------------------- COSTEO REAL DE LA OBRA --------------------------
+
+/** Registra horas-hombre imputadas a una obra (costo real de mano de obra). */
+export async function registrarManoObra(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const parsed = manoObraSchema.safeParse({
+    idObra: formData.get("idObra"),
+    idUsuario: formData.get("idUsuario") || undefined,
+    descripcion: formData.get("descripcion") || undefined,
+    fecha: formData.get("fecha"),
+    horas: formData.get("horas"),
+    tarifaHora: formData.get("tarifaHora"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: "Revise los datos.", fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+  const d = parsed.data;
+  try {
+    const reg = await prisma.manoObraObra.create({
+      data: {
+        idObra: d.idObra,
+        idUsuario: d.idUsuario ?? null,
+        descripcion: d.descripcion || null,
+        fecha: new Date(d.fecha),
+        horas: d.horas,
+        tarifaHora: d.tarifaHora,
+      },
+    });
+    await registrarAuditoria({
+      tabla: "Mano_Obra_Obra",
+      idRegistro: reg.idManoObra,
+      accion: "INSERT",
+      idUsuario: user.sub,
+      datosNuevos: { idObra: d.idObra, horas: d.horas, costo: d.horas * d.tarifaHora },
+    });
+    revalidatePath("/obras");
+    return { ok: true, message: `Registradas ${d.horas} h (S/ ${(d.horas * d.tarifaHora).toFixed(2)}).` };
+  } catch {
+    return { ok: false, error: "No se pudo registrar la mano de obra." };
+  }
+}
+
+export async function eliminarManoObra(id: number): Promise<ActionResult> {
+  const user = await requireUser();
+  try {
+    await prisma.manoObraObra.delete({ where: { idManoObra: id } });
+    await registrarAuditoria({ tabla: "Mano_Obra_Obra", idRegistro: id, accion: "DELETE", idUsuario: user.sub });
+    revalidatePath("/obras");
+    return { ok: true, message: "Registro eliminado." };
+  } catch {
+    return { ok: false, error: "No se pudo eliminar el registro." };
+  }
+}
+
+/** Registra un costo indirecto imputado a una obra. */
+export async function registrarCostoIndirecto(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  const parsed = costoIndirectoSchema.safeParse({
+    idObra: formData.get("idObra"),
+    tipo: formData.get("tipo"),
+    descripcion: formData.get("descripcion") || undefined,
+    monto: formData.get("monto"),
+    fecha: formData.get("fecha"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: "Revise los datos.", fieldErrors: parsed.error.flatten().fieldErrors };
+  }
+  const d = parsed.data;
+  try {
+    const reg = await prisma.costoIndirectoObra.create({
+      data: {
+        idObra: d.idObra,
+        tipo: d.tipo,
+        descripcion: d.descripcion || null,
+        monto: d.monto,
+        fecha: new Date(d.fecha),
+        registradoPor: user.sub,
+      },
+    });
+    await registrarAuditoria({
+      tabla: "Costos_Indirectos_Obra",
+      idRegistro: reg.idCostoIndirecto,
+      accion: "INSERT",
+      idUsuario: user.sub,
+      datosNuevos: { idObra: d.idObra, tipo: d.tipo, monto: d.monto },
+    });
+    revalidatePath("/obras");
+    return { ok: true, message: "Costo indirecto registrado." };
+  } catch {
+    return { ok: false, error: "No se pudo registrar el costo." };
+  }
+}
+
+export async function eliminarCostoIndirecto(id: number): Promise<ActionResult> {
+  const user = await requireUser();
+  try {
+    await prisma.costoIndirectoObra.delete({ where: { idCostoIndirecto: id } });
+    await registrarAuditoria({ tabla: "Costos_Indirectos_Obra", idRegistro: id, accion: "DELETE", idUsuario: user.sub });
+    revalidatePath("/obras");
+    return { ok: true, message: "Costo eliminado." };
+  } catch {
+    return { ok: false, error: "No se pudo eliminar el costo." };
   }
 }
 

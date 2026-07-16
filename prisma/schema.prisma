@@ -92,6 +92,121 @@ enum AccionAuditoria {
   @@map("accion_auditoria")
 }
 
+/// Magnitud que mide una unidad. Evita sumar peras con manzanas
+/// (no se puede convertir Kg a Metro).
+enum TipoUnidad {
+  Longitud
+  Masa
+  Area
+  Volumen
+  Unidad
+
+  @@map("tipo_unidad")
+}
+
+enum EstadoCompra {
+  Borrador
+  Confirmada
+  Recibida
+  Anulada
+
+  @@map("estado_compra")
+}
+
+/// Categorías de costo indirecto imputable a una obra.
+enum TipoCostoIndirecto {
+  Energia
+  Transporte
+  Equipos
+  Consumibles
+  Subcontrato
+  Otro
+
+  @@map("tipo_costo_indirecto")
+}
+
+// --------------------------- CATÁLOGOS -------------------------------
+
+/// Clasificación jerárquica de materiales (padre → hijas).
+/// Ej.: "Acero" → "Perfiles" → "Perfil C".
+model Categoria {
+  idCategoria      Int                  @id @default(autoincrement()) @map("id_categoria")
+  nombre           String               @db.VarChar(80)
+  descripcion      String?              @db.VarChar(255)
+  idCategoriaPadre Int?                 @map("id_categoria_padre")
+  /// Merma esperada por defecto para los materiales de esta categoría (%).
+  porcentajeMerma  Decimal              @default(6.00) @map("porcentaje_merma") @db.Decimal(5, 2)
+  estado           EstadoActivoInactivo @default(Activo)
+  creadoEn         DateTime             @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn    DateTime             @updatedAt @map("actualizado_en") @db.Timestamptz
+
+  padre      Categoria?  @relation("CategoriaJerarquia", fields: [idCategoriaPadre], references: [idCategoria], onDelete: SetNull, onUpdate: Cascade)
+  hijas      Categoria[] @relation("CategoriaJerarquia")
+  materiales Material[]
+
+  @@unique([nombre, idCategoriaPadre], map: "uq_categoria_nombre_padre")
+  @@index([idCategoriaPadre])
+  @@map("Categorias")
+}
+
+/// Unidades de medida normalizadas. `factorBase` permite convertir a la
+/// unidad base de su mismo `tipo` (ej.: cm → 0.01 respecto del metro).
+model UnidadMedida {
+  idUnidad   Int                  @id @default(autoincrement()) @map("id_unidad")
+  simbolo    String               @unique @db.VarChar(10)
+  nombre     String               @db.VarChar(50)
+  tipo       TipoUnidad
+  factorBase Decimal              @default(1) @map("factor_base") @db.Decimal(12, 6)
+  estado     EstadoActivoInactivo @default(Activo)
+
+  materiales Material[]
+
+  @@map("Unidades_Medida")
+}
+
+/// Ubicación física dentro del local: Zona → Estante → Nivel.
+/// Permite saber exactamente dónde está guardado cada material.
+model Ubicacion {
+  idUbicacion  Int                  @id @default(autoincrement()) @map("id_ubicacion")
+  zona         String               @db.VarChar(50)
+  estante      String?              @db.VarChar(50)
+  nivel        String?              @db.VarChar(50)
+  descripcion  String?              @db.VarChar(255)
+  /// Capacidad referencial de la ubicación (en la unidad del material).
+  capacidadMax Decimal?             @map("capacidad_max") @db.Decimal(10, 2)
+  estado       EstadoActivoInactivo @default(Activo)
+  creadoEn     DateTime             @default(now()) @map("creado_en") @db.Timestamptz
+
+  materiales Material[]
+
+  @@unique([zona, estante, nivel], map: "uq_ubicacion_zona_estante_nivel")
+  @@index([zona])
+  @@map("Ubicaciones")
+}
+
+/// Proveedor de materiales.
+model Proveedor {
+  idProveedor    Int                  @id @default(autoincrement()) @map("id_proveedor")
+  ruc            String               @unique @db.VarChar(20)
+  razonSocial    String               @map("razon_social") @db.VarChar(150)
+  direccion      String?              @db.VarChar(255)
+  telefono       String?              @db.VarChar(20)
+  correo         String?              @db.VarChar(100)
+  contactoNombre String?              @map("contacto_nombre") @db.VarChar(150)
+  /// Días de crédito acordados (0 = contado).
+  diasCredito    Int                  @default(0) @map("dias_credito")
+  estado         EstadoActivoInactivo @default(Activo)
+  creadoEn       DateTime             @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn  DateTime             @updatedAt @map("actualizado_en") @db.Timestamptz
+  creadoPor      Int?                 @map("creado_por")
+
+  creadoPorUsuario Usuario? @relation("ProveedorCreadoPor", fields: [creadoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+  compras          Compra[]
+
+  @@index([estado])
+  @@map("Proveedores")
+}
+
 // --------------------------- MODELOS ---------------------------------
 
 model Usuario {
@@ -110,15 +225,19 @@ model Usuario {
   creadoEn         DateTime             @default(now()) @map("creado_en") @db.Timestamptz
   actualizadoEn    DateTime             @updatedAt @map("actualizado_en") @db.Timestamptz
 
-  clientesCreados       Cliente[]                @relation("ClienteCreadoPor")
-  clientesActualizados  Cliente[]                @relation("ClienteActualizadoPor")
-  obrasCreadas          Obra[]                   @relation("ObraCreadoPor")
-  obrasActualizadas     Obra[]                   @relation("ObraActualizadoPor")
-  presupuestosCreados   Presupuesto[]            @relation("PresupuestoCreadoPor")
-  pagosRegistrados      PagoObra[]
-  movimientos           MovimientoInventario[]
-  auditorias            Auditoria[]
-  archivosSubidos       ObraArchivo[]
+  clientesCreados      Cliente[]              @relation("ClienteCreadoPor")
+  clientesActualizados Cliente[]              @relation("ClienteActualizadoPor")
+  obrasCreadas         Obra[]                 @relation("ObraCreadoPor")
+  obrasActualizadas    Obra[]                 @relation("ObraActualizadoPor")
+  presupuestosCreados  Presupuesto[]          @relation("PresupuestoCreadoPor")
+  pagosRegistrados     PagoObra[]
+  movimientos          MovimientoInventario[]
+  auditorias           Auditoria[]
+  archivosSubidos      ObraArchivo[]
+  proveedoresCreados   Proveedor[]            @relation("ProveedorCreadoPor")
+  comprasRegistradas   Compra[]               @relation("CompraCreadoPor")
+  manoObraRegistrada   ManoObraObra[]
+  costosRegistrados    CostoIndirectoObra[]
 
   @@map("Usuarios")
 }
@@ -153,53 +272,80 @@ model Cliente {
 }
 
 model Material {
-  idMaterial    Int            @id @default(autoincrement()) @map("id_material")
-  codigoMaterial String        @unique @map("codigo_material") @db.VarChar(50)
-  nombre        String         @db.VarChar(100)
-  descripcion   String?        @db.VarChar(255) // extensión prototipo
-  categoria     String         @db.VarChar(50)
-  unidadMedida  String         @map("unidad_medida") @db.VarChar(20)
-  stockActual   Decimal        @default(0) @map("stock_actual") @db.Decimal(10, 2)
-  stockMinimo   Decimal        @default(0) @map("stock_minimo") @db.Decimal(10, 2)
-  stockMaximo   Decimal?       @map("stock_maximo") @db.Decimal(10, 2)
-  cupp          Decimal        @default(0) @db.Decimal(10, 2)
-  areaAlmacen   String?        @map("area_almacen") @db.VarChar(50) // extensión prototipo
-  estanteNivel  String?        @map("estante_nivel") @db.VarChar(50) // extensión prototipo
+  idMaterial     Int     @id @default(autoincrement()) @map("id_material")
+  codigoMaterial String  @unique @map("codigo_material") @db.VarChar(50)
+  nombre         String  @db.VarChar(100)
+  descripcion    String? @db.VarChar(255)
+
+  // --- Clasificación y ubicación (catálogos) ---
+  idCategoria Int  @map("id_categoria")
+  idUnidad    Int  @map("id_unidad")
+  idUbicacion Int? @map("id_ubicacion") // dónde se almacena dentro del local
+
+  // --- Atributos técnicos del rubro metalmecánico ---
+  /// Calidad/norma del acero. Ej.: ASTM A36, ASTM A500, AISI 304.
+  norma        String?  @db.VarChar(50)
+  /// Espesor en milímetros (planchas, tubos, perfiles).
+  espesorMm    Decimal? @map("espesor_mm") @db.Decimal(8, 2)
+  /// Dimensiones comerciales legibles. Ej.: 4'x8', 6"x2", Ø 1/2".
+  medidas      String?  @db.VarChar(80)
+  /// Acabado superficial. Ej.: Negro, Galvanizado, Inoxidable, Pintado.
+  acabado      String?  @db.VarChar(50)
+  /// Peso por unidad de medida (kg/m, kg/plancha) — para costeo y logística.
+  pesoUnitario Decimal? @map("peso_unitario") @db.Decimal(10, 3)
+
+  // --- Stock y costos ---
+  stockActual     Decimal  @default(0) @map("stock_actual") @db.Decimal(10, 2)
+  stockMinimo     Decimal  @default(0) @map("stock_minimo") @db.Decimal(10, 2)
+  stockMaximo     Decimal? @map("stock_maximo") @db.Decimal(10, 2)
+  /// Costo Unitario Promedio Ponderado (sin IGV).
+  cupp            Decimal  @default(0) @db.Decimal(10, 2)
+  /// Merma esperada de este material (%). Si es NULL se hereda de la categoría.
+  porcentajeMerma Decimal? @map("porcentaje_merma") @db.Decimal(5, 2)
+
   estado        EstadoMaterial @default(Activo)
   creadoEn      DateTime       @default(now()) @map("creado_en") @db.Timestamptz
   actualizadoEn DateTime       @updatedAt @map("actualizado_en") @db.Timestamptz
 
-  detalles     DetallePresupuesto[]
-  movimientos  MovimientoInventario[]
+  categoria      Categoria              @relation(fields: [idCategoria], references: [idCategoria], onDelete: Restrict, onUpdate: Cascade)
+  unidad         UnidadMedida           @relation(fields: [idUnidad], references: [idUnidad], onDelete: Restrict, onUpdate: Cascade)
+  ubicacion      Ubicacion?             @relation(fields: [idUbicacion], references: [idUbicacion], onDelete: SetNull, onUpdate: Cascade)
+  detalles       DetallePresupuesto[]
+  movimientos    MovimientoInventario[]
+  detalleCompras DetalleCompra[]
 
-  @@index([categoria])
+  @@index([idCategoria])
+  @@index([idUbicacion])
+  @@index([estado])
   @@map("Materiales")
 }
 
 model Obra {
-  idObra               Int         @id @default(autoincrement()) @map("id_obra")
-  idCliente            Int         @map("id_cliente")
-  nombreObra           String      @map("nombre_obra") @db.VarChar(150)
-  descripcion          String?     @db.Text
-  tipoObra             String?     @map("tipo_obra") @db.VarChar(100) // extensión prototipo
-  ubicacion            String?     @db.VarChar(255) // extensión prototipo
-  fechaInicio          DateTime    @map("fecha_inicio") @db.Date
-  fechaEntregaEstimada DateTime    @map("fecha_entrega_estimada") @db.Date
-  fechaEntregaReal     DateTime?   @map("fecha_entrega_real") @db.Date
-  porcentajeAvance     Decimal     @default(0) @map("porcentaje_avance") @db.Decimal(5, 2)
-  estadoObra           EstadoObra  @default(Presupuestando) @map("estado_obra")
-  creadoEn             DateTime    @default(now()) @map("creado_en") @db.Timestamptz
-  actualizadoEn        DateTime    @updatedAt @map("actualizado_en") @db.Timestamptz
-  creadoPor            Int?        @map("creado_por")
-  actualizadoPor       Int?        @map("actualizado_por")
+  idObra               Int        @id @default(autoincrement()) @map("id_obra")
+  idCliente            Int        @map("id_cliente")
+  nombreObra           String     @map("nombre_obra") @db.VarChar(150)
+  descripcion          String?    @db.Text
+  tipoObra             String?    @map("tipo_obra") @db.VarChar(100) // extensión prototipo
+  ubicacion            String?    @db.VarChar(255) // extensión prototipo
+  fechaInicio          DateTime   @map("fecha_inicio") @db.Date
+  fechaEntregaEstimada DateTime   @map("fecha_entrega_estimada") @db.Date
+  fechaEntregaReal     DateTime?  @map("fecha_entrega_real") @db.Date
+  porcentajeAvance     Decimal    @default(0) @map("porcentaje_avance") @db.Decimal(5, 2)
+  estadoObra           EstadoObra @default(Presupuestando) @map("estado_obra")
+  creadoEn             DateTime   @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn        DateTime   @updatedAt @map("actualizado_en") @db.Timestamptz
+  creadoPor            Int?       @map("creado_por")
+  actualizadoPor       Int?       @map("actualizado_por")
 
-  cliente               Cliente  @relation(fields: [idCliente], references: [idCliente], onDelete: Restrict, onUpdate: Cascade)
-  creadoPorUsuario      Usuario? @relation("ObraCreadoPor", fields: [creadoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
-  actualizadoPorUsuario Usuario? @relation("ObraActualizadoPor", fields: [actualizadoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+  cliente               Cliente                @relation(fields: [idCliente], references: [idCliente], onDelete: Restrict, onUpdate: Cascade)
+  creadoPorUsuario      Usuario?               @relation("ObraCreadoPor", fields: [creadoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+  actualizadoPorUsuario Usuario?               @relation("ObraActualizadoPor", fields: [actualizadoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
   presupuesto           Presupuesto?
   pagos                 PagoObra[]
   movimientos           MovimientoInventario[]
   archivos              ObraArchivo[]
+  manoObra              ManoObraObra[]
+  costosIndirectos      CostoIndirectoObra[]
 
   @@index([idCliente])
   @@index([estadoObra])
@@ -216,7 +362,7 @@ model ObraArchivo {
   subidoPor   Int?     @map("subido_por")
   creadoEn    DateTime @default(now()) @map("creado_en") @db.Timestamptz
 
-  obra            Obra     @relation(fields: [idObra], references: [idObra], onDelete: Cascade, onUpdate: Cascade)
+  obra             Obra     @relation(fields: [idObra], references: [idObra], onDelete: Cascade, onUpdate: Cascade)
   subidoPorUsuario Usuario? @relation(fields: [subidoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([idObra])
@@ -236,11 +382,119 @@ model Presupuesto {
   actualizadoEn            DateTime @updatedAt @map("actualizado_en") @db.Timestamptz
   creadoPor                Int?     @map("creado_por")
 
+  // --- Impuestos y moneda (Perú) ---
+  /// Suma de materiales + mermas + mano de obra + margen, SIN IGV.
+  subtotal      Decimal @default(0) @db.Decimal(12, 2)
+  /// Tasa de IGV aplicada al momento de emitir (18% por defecto).
+  igvPorcentaje Decimal @default(18.00) @map("igv_porcentaje") @db.Decimal(5, 2)
+  /// Monto de IGV = subtotal * igv_porcentaje / 100.
+  igvMonto      Decimal @default(0) @map("igv_monto") @db.Decimal(12, 2)
+  /// Moneda ISO-4217. PEN = Soles.
+  moneda        String  @default("PEN") @db.VarChar(3)
+
   obra             Obra                 @relation(fields: [idObra], references: [idObra], onDelete: Cascade, onUpdate: Cascade)
   creadoPorUsuario Usuario?             @relation("PresupuestoCreadoPor", fields: [creadoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
   detalles         DetallePresupuesto[]
 
   @@map("Presupuestos")
+}
+
+// --------------------- COMPRAS (costos reales) -----------------------
+
+/// Orden de compra / factura de proveedor. Es la fuente de verdad del costo
+/// real de los materiales: al recibirse genera las entradas del kardex.
+model Compra {
+  idCompra        Int          @id @default(autoincrement()) @map("id_compra")
+  idProveedor     Int          @map("id_proveedor")
+  /// N° de factura/guía del proveedor.
+  numeroDocumento String       @map("numero_documento") @db.VarChar(50)
+  fechaEmision    DateTime     @map("fecha_emision") @db.Date
+  fechaRecepcion  DateTime?    @map("fecha_recepcion") @db.Date
+  estado          EstadoCompra @default(Borrador)
+
+  /// Suma de los detalles, sin IGV.
+  subtotal      Decimal @default(0) @db.Decimal(12, 2)
+  /// Flete/transporte: se prorratea entre los ítems para el costo real.
+  flete         Decimal @default(0) @db.Decimal(12, 2)
+  igvPorcentaje Decimal @default(18.00) @map("igv_porcentaje") @db.Decimal(5, 2)
+  igvMonto      Decimal @default(0) @map("igv_monto") @db.Decimal(12, 2)
+  total         Decimal @default(0) @db.Decimal(12, 2)
+  moneda        String  @default("PEN") @db.VarChar(3)
+
+  observaciones String?  @db.VarChar(255)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz
+  creadoPor     Int?     @map("creado_por")
+
+  proveedor        Proveedor              @relation(fields: [idProveedor], references: [idProveedor], onDelete: Restrict, onUpdate: Cascade)
+  creadoPorUsuario Usuario?               @relation("CompraCreadoPor", fields: [creadoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+  detalles         DetalleCompra[]
+  movimientos      MovimientoInventario[]
+
+  @@unique([idProveedor, numeroDocumento], map: "uq_compra_proveedor_documento")
+  @@index([fechaEmision])
+  @@index([estado])
+  @@map("Compras")
+}
+
+model DetalleCompra {
+  idDetalleCompra  Int     @id @default(autoincrement()) @map("id_detalle_compra")
+  idCompra         Int     @map("id_compra")
+  idMaterial       Int     @map("id_material")
+  cantidad         Decimal @db.Decimal(10, 2)
+  /// Precio unitario pactado con el proveedor, SIN IGV.
+  costoUnitario    Decimal @map("costo_unitario") @db.Decimal(10, 2)
+  /// Flete prorrateado a este ítem (se suma al costo real de adquisición).
+  fleteProrrateado Decimal @default(0) @map("flete_prorrateado") @db.Decimal(10, 2)
+
+  compra   Compra   @relation(fields: [idCompra], references: [idCompra], onDelete: Cascade, onUpdate: Cascade)
+  material Material @relation(fields: [idMaterial], references: [idMaterial], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([idCompra, idMaterial], map: "uq_detalle_compra_material")
+  @@index([idMaterial])
+  @@map("Detalle_Compra")
+}
+
+// ------------------- COSTEO REAL DE OBRA -----------------------------
+
+/// Horas-hombre imputadas a una obra. Permite comparar el costo real de
+/// mano de obra contra lo presupuestado.
+model ManoObraObra {
+  idManoObra  Int      @id @default(autoincrement()) @map("id_mano_obra")
+  idObra      Int      @map("id_obra")
+  idUsuario   Int?     @map("id_usuario") // trabajador que ejecutó
+  descripcion String?  @db.VarChar(255)
+  fecha       DateTime @db.Date
+  horas       Decimal  @db.Decimal(6, 2)
+  /// Tarifa por hora aplicada (S/ /hora).
+  tarifaHora  Decimal  @map("tarifa_hora") @db.Decimal(10, 2)
+  creadoEn    DateTime @default(now()) @map("creado_en") @db.Timestamptz
+
+  obra    Obra     @relation(fields: [idObra], references: [idObra], onDelete: Cascade, onUpdate: Cascade)
+  usuario Usuario? @relation(fields: [idUsuario], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([idObra])
+  @@index([fecha])
+  @@map("Mano_Obra_Obra")
+}
+
+/// Costos indirectos imputables a una obra (energía, transporte, equipos…).
+model CostoIndirectoObra {
+  idCostoIndirecto Int                @id @default(autoincrement()) @map("id_costo_indirecto")
+  idObra           Int                @map("id_obra")
+  tipo             TipoCostoIndirecto
+  descripcion      String?            @db.VarChar(255)
+  monto            Decimal            @db.Decimal(12, 2)
+  fecha            DateTime           @db.Date
+  registradoPor    Int?               @map("registrado_por")
+  creadoEn         DateTime           @default(now()) @map("creado_en") @db.Timestamptz
+
+  obra    Obra     @relation(fields: [idObra], references: [idObra], onDelete: Cascade, onUpdate: Cascade)
+  usuario Usuario? @relation(fields: [registradoPor], references: [idUsuario], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([idObra])
+  @@index([fecha])
+  @@map("Costos_Indirectos_Obra")
 }
 
 model DetallePresupuesto {
@@ -286,11 +540,14 @@ model MovimientoInventario {
   costoUnitario       Decimal        @default(0) @map("costo_unitario") @db.Decimal(10, 2)
   motivo              String?        @db.VarChar(255)
   referenciaDocumento String?        @map("referencia_documento") @db.VarChar(50)
+  /// Compra que originó esta entrada (trazabilidad movimiento → factura → proveedor).
+  idCompra            Int?           @map("id_compra")
   idUsuario           Int            @map("id_usuario")
   fechaMovimiento     DateTime       @default(now()) @map("fecha_movimiento") @db.Timestamptz
 
   material Material @relation(fields: [idMaterial], references: [idMaterial], onDelete: Restrict, onUpdate: Cascade)
   obra     Obra?    @relation(fields: [idObra], references: [idObra], onDelete: SetNull, onUpdate: Cascade)
+  compra   Compra?  @relation(fields: [idCompra], references: [idCompra], onDelete: SetNull, onUpdate: Cascade)
   usuario  Usuario  @relation(fields: [idUsuario], references: [idUsuario], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([idMaterial, fechaMovimiento])

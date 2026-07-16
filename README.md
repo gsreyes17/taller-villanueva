@@ -1,9 +1,12 @@
-# Taller Villanueva — Sistema de Gestión · MVP v1.0
+# Taller Villanueva — Sistema de Gestión · v2.0
 
-Sistema de gestión integral para un **taller de metalmecánica**: clientes, inventario
-de materiales, obras/proyectos, presupuestos, pagos y trazabilidad total. Funciona como
-**aplicación web** y se empaqueta como **aplicativo de escritorio** (Windows/macOS) con
-una experiencia nativa, conectándose a una base de datos en la nube.
+Sistema de gestión integral para un **taller de metalmecánica**: clientes, almacén,
+inventario con kardex, compras a proveedores, obras, presupuestos, **costeo real y
+rentabilidad**, con trazabilidad total. Funciona como **aplicación web** y se empaqueta
+como **aplicativo de escritorio** (Windows/macOS) conectándose a una base de datos en la nube.
+
+> 📘 La justificación del modelo, las reglas de negocio y las decisiones de arquitectura
+> están en **[DOCUMENTACION.md](./DOCUMENTACION.md)**.
 
 <p align="center"><em>Fábrica sobre naranja · sidebar navy · fondo crema — una identidad visual consistente en login, app, carga e instalador.</em></p>
 
@@ -17,10 +20,12 @@ una experiencia nativa, conectándose a una base de datos en la nube.
 | **Dashboard** | KPIs (obras activas, valor en obras, inventario valorizado), resumen financiero del mes, **balance mensual** (tendencia de ingresos/egresos) y alertas del sistema. |
 | **Usuarios** | Alta, edición, roles (Administrador/Empleado) y estado. Solo Administrador. |
 | **Clientes** | CRUD completo con datos de contacto y persona de contacto; búsqueda y estados. |
-| **Obras** | CRUD ligado a cliente, % de avance, presupuesto por obra con **cálculo automático de mermas (6%)**, registro de **pagos y saldo pendiente**, y **bocetos/planos** (subida de imágenes/PDF a la nube con visor a pantalla completa). |
-| **Inventario** | Materiales + **kardex** real: entradas, salidas y ajustes con **validación de stock a nivel de base de datos**. |
-| **Precios y Costos** | Control del **CUPP** (costo unitario promedio ponderado), recalculable desde las entradas de compra. |
-| **Reportes** | 6 reportes (operativos y financieros) con **impresión limpia** y **exportación a PDF nativo** en el aplicativo. |
+| **Obras** | CRUD ligado a cliente, % de avance, presupuesto con **merma ponderada por material e IGV**, **pagos y saldo**, **bocetos/planos** (imágenes/PDF con visor a pantalla completa) y **costeo real** (materiales + horas-hombre + indirectos) con margen. |
+| **Inventario** | Materiales con **especificación técnica** (norma ASTM, espesor, medidas, acabado, peso) + **kardex** real: entradas, salidas y ajustes con **validación de stock en la base de datos**. |
+| **Almacén** | **Catálogos**: categorías jerárquicas con merma, unidades de medida, y **mapa de ubicaciones físicas** (Zona → Estante → Nivel) con alerta de material sin ubicar. |
+| **Compras** | Proveedores y **órdenes de compra** con IGV y **flete prorrateado**. Al recibir, genera el kardex y **recalcula el CUPP con el costo real**. |
+| **Precios y Costos** | Control del **CUPP** (costo unitario promedio ponderado). |
+| **Reportes** | 7 reportes (operativos y financieros, incl. **rentabilidad**) con **filtros por rango de fechas y por entidad**, impresión limpia y **exportación a PDF nativo**. |
 | **Mi Perfil** | Cada usuario edita sus datos (nombre, apellido, correo, teléfono) y cambia su contraseña. |
 | **Escritorio** | Ventana sin marco con barra de título propia, pantalla de carga con branding, verificación activa de conexión y pantalla de "sin conexión" con reintento. |
 
@@ -37,20 +42,25 @@ una experiencia nativa, conectándose a una base de datos en la nube.
 
 ---
 
-## 🔒 Reglas de negocio e integridad (a nivel de base de datos)
+## 🔒 Reglas de negocio e integridad (en la base de datos)
 
-- **Kardex con stock íntegro** — los movimientos se insertan en `Movimientos_Inventario`;
-  los **triggers de Postgres** validan el stock (impiden salidas sin saldo), calculan el
-  `saldo_resultante` y actualizan `Materiales.stock_actual`. La aplicación **nunca** toca el
-  stock directamente.
-- **Mermas automáticas (6%)** — un trigger recalcula `costo_mermas` en cada presupuesto.
-- **Auditoría** — triggers en Obras/Materiales + un helper que registra el resto de tablas,
-  asociando **toda escritura al usuario de la sesión**.
-- **CHECK constraints** — stocks ≥ 0, avance 0–100, montos ≥ 0, fechas coherentes.
-- **Row Level Security** activado en todas las tablas: bloquea el REST API público de
-  Supabase; el backend accede vía Prisma con el rol `postgres` (BYPASSRLS).
-- **Storage seguro** — las subidas/borrados de bocetos pasan por el servidor con la
-  *service-role key* (nunca expuesta al cliente); el bucket `obras` es de lectura pública.
+El principio: **la base de datos es la última línea de defensa**. Las reglas críticas viven
+en PostgreSQL, no solo en la app — se cumplen aunque se entre por otro cliente.
+
+- **Kardex con stock íntegro** — los triggers validan el stock (impiden salidas sin saldo),
+  calculan el `saldo_resultante` y actualizan `stock_actual`. La app **nunca** toca el stock.
+- **Merma ponderada por material** — cada material (o su categoría) define su % real:
+  cortar plancha merma ~12%, un perfil ~6%. Un 6% plano subestimaría el presupuesto.
+- **Importes calculados por la BD** — presupuestos y compras recalculan subtotal, mermas,
+  IGV y total por trigger. La UI solo muestra una vista previa con la misma fórmula.
+- **CUPP con costo real** — al recibir una compra, el promedio ponderado se recalcula
+  incluyendo el **flete prorrateado**.
+- **Auditoría** — triggers + helper que asocian **toda escritura al usuario de la sesión**.
+- **170 CHECK constraints y 31 FK** — stocks ≥ 0, avance 0–100, horas ≤ 24, fechas
+  coherentes, una categoría no puede ser su propio padre, etc.
+- **Borrado lógico ante dependencias** — nada con historial se elimina; se desactiva.
+- **Row Level Security** en las 18 tablas: bloquea la API REST pública de Supabase.
+- **Storage seguro** — subidas/borrados por el servidor con la *service-role key*.
 
 ---
 
