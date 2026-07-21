@@ -16,6 +16,7 @@ import {
   Settings,
   Warehouse,
   ShoppingCart,
+  Calculator,
 } from "lucide-react";
 import { logoutAction } from "@/app/(auth)/actions";
 import { PerfilModal } from "@/components/layout/perfil-modal";
@@ -24,6 +25,7 @@ import type { SessionUser } from "@/lib/auth";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/cotizador", label: "Cotizador", icon: Calculator },
   { href: "/usuarios", label: "Usuarios", icon: Users, adminOnly: true },
   { href: "/clientes", label: "Clientes", icon: Building2 },
   { href: "/obras", label: "Obras", icon: HardHat },

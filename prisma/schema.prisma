@@ -571,3 +571,37 @@ model Auditoria {
   @@index([fechaHora])
   @@map("Auditoria")
 }
+
+// --------------------- COTIZADOR RÁPIDO -----------------------
+
+model ProductoCatalogo {
+  idProducto    Int      @id @default(autoincrement()) @map("id_producto")
+  nombre        String   @db.VarChar(150)
+  descripcion   String?  @db.Text
+  precioBase    Decimal  @map("precio_base") @db.Decimal(10, 2)
+  imagenUrl     String?  @map("imagen_url") @db.VarChar(500)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz
+  actualizadoEn DateTime @updatedAt @map("actualizado_en") @db.Timestamptz
+
+  @@map("Producto_Catalogo")
+}
+
+model CotizacionRapida {
+  idCotizacion    Int      @id @default(autoincrement()) @map("id_cotizacion")
+  nombreCliente   String   @map("nombre_cliente") @db.VarChar(150)
+  dniRuc          String?  @map("dni_ruc") @db.VarChar(20)
+  telefono        String?  @db.VarChar(20)
+  correo          String?  @db.VarChar(100)
+  producto        String   @db.VarChar(150)
+  descripcion     String?  @db.Text
+  medidas         String?  @db.VarChar(100)
+  cantidad        Int      @default(1)
+  precioUnitario  Decimal  @map("precio_unitario") @db.Decimal(10, 2)
+  precioTotal     Decimal  @map("precio_total") @db.Decimal(12, 2)
+  tiempoEntrega   String?  @map("tiempo_entrega") @db.VarChar(100)
+  validezDias     Int      @default(7) @map("validez_dias")
+  imagenUrl       String?  @map("imagen_url") @db.VarChar(500)
+  creadoEn        DateTime @default(now()) @map("creado_en") @db.Timestamptz
+
+  @@map("Cotizacion_Rapida")
+}

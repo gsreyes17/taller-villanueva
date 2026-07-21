@@ -14,8 +14,8 @@
   --color-brand-light: #fb923c;
   --color-brand-soft: #fff1e6;
 
-  --color-sidebar: #0f172a;
-  --color-sidebar-hover: #1e293b;
+  --color-sidebar: #000000;
+  --color-sidebar-hover: #171717;
   --color-sidebar-muted: #94a3b8;
 
   --color-navy: #1e3a8a;
@@ -60,17 +60,20 @@
 }
 
 @layer utilities {
-  /* Fondo crema con degradado suave del área de contenido */
+  /* Fondo gris claro con degradado suave del área de contenido */
   .bg-app {
-    background: linear-gradient(180deg, #fdf6ec 0%, #fbeee0 100%);
+    background: linear-gradient(180deg, #fdfdfe 0%, #f7f8fa 100%);
   }
   /* Fondo del login: crema con textura de cuadrícula muy sutil */
   .bg-login {
     background-color: #f6ecdd;
     background-image:
-      linear-gradient(rgba(217, 195, 165, 0.18) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(217, 195, 165, 0.18) 1px, transparent 1px);
-    background-size: 22px 22px;
+      linear-gradient(rgba(217, 195, 165, 0.8) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(217, 195, 165, 0.8) 1px, transparent 1px),
+      url('/images/fondo.jpg');
+    background-size: 22px 22px, 22px 22px, cover;
+    background-position: 0 0, 0 0, center;
+    background-blend-mode: overlay, overlay, normal;
   }
   /* Región arrastrable para la barra custom de Electron (fase 2) */
   .app-drag {
