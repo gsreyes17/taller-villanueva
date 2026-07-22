@@ -222,7 +222,6 @@ export async function guardarPresupuesto(payload: {
   }
 }
 
-// ------------------- COSTEO REAL DE LA OBRA --------------------------
 
 /** Registra horas-hombre imputadas a una obra (costo real de mano de obra). */
 export async function registrarManoObra(

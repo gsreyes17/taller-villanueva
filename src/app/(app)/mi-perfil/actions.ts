@@ -57,7 +57,6 @@ export async function actualizarPerfil(
   const usuario = await prisma.usuario.findUnique({ where: { idUsuario: sesion.sub } });
   if (!usuario) return { ok: false, error: "No se encontró su usuario." };
 
-  // Datos básicos
   const data: {
     nombre: string;
     apellido: string;
@@ -71,7 +70,6 @@ export async function actualizarPerfil(
     telefono: d.telefono || null,
   };
 
-  // Cambio de contraseña (opcional)
   const quiereCambiar = Boolean(d.contrasenaNueva);
   if (quiereCambiar) {
     const valida = await bcrypt.compare(d.contrasenaActual || "", usuario.contrasenaHash);

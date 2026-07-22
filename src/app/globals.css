@@ -1,30 +1,38 @@
 @import "tailwindcss";
 
 /* ============================================================
-   Sistema de diseño — Taller Villanueva
-   Paleta extraída de los prototipos:
-   - Acento: naranja  #F97316
-   - Sidebar: navy oscuro  #0F172A
-   - Fondo: crema cálido  #FBEEE0 / #FDF6EC
-   - Badges/progreso: navy  #1E3A8A
+   Sistema de diseño — Taller Villanueva  (fuente única de verdad)
+   Identidad: NARANJA (acento/acción) + AZUL NAVY (datos/estructura).
+   Neutrales con leve calidez hacia el naranja de marca (elegidos, no
+   heredados). Todos los componentes usan estos tokens, no colores sueltos.
    ============================================================ */
 @theme {
-  --color-brand: #f97316;
+  /* --- Marca --- */
+  --color-brand: #f97316;        /* naranja: CTA, activo, logo */
   --color-brand-hover: #ea580c;
   --color-brand-light: #fb923c;
-  --color-brand-soft: #fff1e6;
+  --color-brand-soft: #fff3e8;   /* fondo de realces naranjas */
 
-  --color-sidebar: #000000;
-  --color-sidebar-hover: #171717;
-  --color-sidebar-muted: #94a3b8;
-
+  /* --- Azul de estructura (badges, progreso, datos) --- */
   --color-navy: #1e3a8a;
   --color-navy-soft: #dbeafe;
 
-  --color-cream: #fbeee0;
-  --color-cream-soft: #fdf6ec;
+  /* --- Sidebar: navy profundo (clásico, no negro puro) --- */
+  --color-sidebar: #0f172a;
+  --color-sidebar-hover: #1e293b;
+  --color-sidebar-muted: #94a3b8;
 
-  --color-ink: #0f172a;
+  /* --- Superficies (una sola familia coherente) --- */
+  --color-surface: #ffffff;      /* cards, modales, inputs */
+  --color-surface-2: #f8f7f4;    /* fondo de contenido (blanco cálido) */
+  --color-border: #e7e5e0;       /* borde neutro cálido, no gris frío */
+
+  /* --- Acento cálido heredado (compatibilidad) --- */
+  --color-cream: #f4f1ea;
+  --color-cream-soft: #faf8f4;
+
+  /* --- Texto --- */
+  --color-ink: #0f172a;          /* casi-negro con tinte navy */
   --color-muted: #64748b;
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -60,20 +68,18 @@
 }
 
 @layer utilities {
-  /* Fondo gris claro con degradado suave del área de contenido */
+  /* Fondo del área de contenido: blanco cálido de marca (no gris frío) */
   .bg-app {
-    background: linear-gradient(180deg, #fdfdfe 0%, #f7f8fa 100%);
+    background: linear-gradient(180deg, var(--color-surface-2) 0%, #f3f1ec 100%);
   }
-  /* Fondo del login: crema con textura de cuadrícula muy sutil */
+  /* Fondo del login: foto del taller con velo cálido para legibilidad */
   .bg-login {
-    background-color: #f6ecdd;
+    background-color: #1f2937;
     background-image:
-      linear-gradient(rgba(217, 195, 165, 0.8) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(217, 195, 165, 0.8) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(15, 23, 42, 0.55) 0%, rgba(234, 88, 12, 0.35) 100%),
       url('/images/fondo.jpg');
-    background-size: 22px 22px, 22px 22px, cover;
-    background-position: 0 0, 0 0, center;
-    background-blend-mode: overlay, overlay, normal;
+    background-size: cover, cover;
+    background-position: center, center;
   }
   /* Región arrastrable para la barra custom de Electron (fase 2) */
   .app-drag {

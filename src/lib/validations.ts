@@ -1,12 +1,10 @@
 import { z } from "zod";
 
-// --------------------------- Auth ------------------------------------
 export const loginSchema = z.object({
   nombreUsuario: z.string().trim().min(1, "Ingrese su usuario"),
   contrasena: z.string().min(1, "Ingrese su contraseña"),
 });
 
-// --------------------------- Usuarios --------------------------------
 export const usuarioCreateSchema = z
   .object({
     nombre: z.string().trim().min(1, "El nombre es obligatorio").max(50),
@@ -37,7 +35,6 @@ export const usuarioUpdateSchema = z.object({
   contrasena: z.string().min(6, "Mínimo 6 caracteres").optional().or(z.literal("")),
 });
 
-// --------------------------- Clientes --------------------------------
 // Nota: los valores son los IDENTIFICADORES del enum de Prisma Client
 // (p. ej. "PersonaNatural"), no la etiqueta con espacios que se guarda en BD.
 export const clienteSchema = z.object({
@@ -55,7 +52,6 @@ export const clienteSchema = z.object({
   estado: z.enum(["Activo", "Inactivo"]).default("Activo"),
 });
 
-// --------------------------- Materiales ------------------------------
 const opt = (max: number) => z.string().trim().max(max).optional().or(z.literal(""));
 
 export const materialSchema = z
@@ -86,7 +82,6 @@ export const materialSchema = z
     path: ["stockMaximo"],
   });
 
-// --------------------------- Catálogos -------------------------------
 export const categoriaSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio").max(80),
   descripcion: opt(255),
@@ -112,7 +107,6 @@ export const ubicacionSchema = z.object({
   estado: z.enum(["Activo", "Inactivo"]).default("Activo"),
 });
 
-// --------------------------- Proveedores -----------------------------
 export const proveedorSchema = z.object({
   ruc: z.string().trim().min(8, "RUC/DNI inválido").max(20),
   razonSocial: z.string().trim().min(1, "La razón social es obligatoria").max(150),
@@ -124,7 +118,6 @@ export const proveedorSchema = z.object({
   estado: z.enum(["Activo", "Inactivo"]).default("Activo"),
 });
 
-// --------------------------- Compras ---------------------------------
 export const detalleCompraSchema = z.object({
   idMaterial: z.coerce.number().int().positive(),
   cantidad: z.coerce.number().positive("La cantidad debe ser mayor a 0"),
@@ -147,7 +140,6 @@ export const compraSchema = z
       }),
   });
 
-// --------------------------- Costeo de obra --------------------------
 export const manoObraSchema = z.object({
   idObra: z.coerce.number().int().positive(),
   idUsuario: z.coerce.number().int().positive().optional(),
@@ -165,7 +157,6 @@ export const costoIndirectoSchema = z.object({
   fecha: z.string().min(1, "La fecha es obligatoria"),
 });
 
-// --------------------------- Filtros de reportes ---------------------
 export const filtroReporteSchema = z.object({
   desde: z.string().optional(),
   hasta: z.string().optional(),
@@ -178,7 +169,6 @@ export const filtroReporteSchema = z.object({
   soloBajoStock: z.coerce.boolean().optional(),
 });
 
-// --------------------------- Movimientos inventario ------------------
 export const movimientoSchema = z.object({
   idMaterial: z.coerce.number().int().positive("Seleccione un material"),
   idObra: z.coerce.number().int().positive().optional(),
@@ -189,7 +179,6 @@ export const movimientoSchema = z.object({
   referenciaDocumento: z.string().trim().max(50).optional().or(z.literal("")),
 });
 
-// --------------------------- Obras -----------------------------------
 export const obraSchema = z
   .object({
     idCliente: z.coerce.number().int().positive("Seleccione un cliente"),
@@ -214,7 +203,6 @@ export const avanceSchema = z.object({
   estadoObra: z.enum(["Presupuestando", "EnEjecucion", "Finalizado", "Cancelado"]),
 });
 
-// --------------------------- Presupuesto -----------------------------
 export const detalleMaterialSchema = z.object({
   idMaterial: z.coerce.number().int().positive(),
   cantidadRequerida: z.coerce.number().positive(),
@@ -235,7 +223,6 @@ export const presupuestoSchema = z.object({
     ),
 });
 
-// --------------------------- Pagos -----------------------------------
 export const pagoSchema = z.object({
   idObra: z.coerce.number().int().positive(),
   montoAbonado: z.coerce.number().positive("El monto debe ser mayor a 0"),
@@ -244,7 +231,6 @@ export const pagoSchema = z.object({
   observaciones: z.string().trim().max(255).optional().or(z.literal("")),
 });
 
-// --------------------------- Perfil (autogestión) --------------------
 export const perfilSchema = z
   .object({
     nombre: z.string().trim().min(1, "El nombre es obligatorio").max(50),
@@ -268,6 +254,22 @@ export const perfilSchema = z
       ctx.addIssue({ code: "custom", path: ["confirmarContrasena"], message: "Las contraseñas no coinciden" });
     }
   });
+
+export const cotizacionSchema = z.object({
+  // Vínculo opcional a un cliente existente (0 = cliente manual).
+  idCliente: z.coerce.number().int().nonnegative().optional(),
+  nombreCliente: z.string().trim().min(1, "El nombre del cliente es obligatorio").max(150),
+  dniRuc: z.string().trim().max(20).optional().or(z.literal("")),
+  telefono: z.string().trim().max(20).optional().or(z.literal("")),
+  correo: z.string().trim().email("Correo inválido").max(100).optional().or(z.literal("")),
+  producto: z.string().trim().min(1, "El producto es obligatorio").max(150),
+  descripcion: z.string().trim().optional().or(z.literal("")),
+  medidas: z.string().trim().max(100).optional().or(z.literal("")),
+  cantidad: z.coerce.number().int().positive("La cantidad debe ser mayor a 0"),
+  precioUnitario: z.coerce.number().nonnegative("No puede ser negativo"),
+  tiempoEntrega: z.string().trim().max(100).optional().or(z.literal("")),
+  validezDias: z.coerce.number().int().positive().max(365).default(7),
+});
 
 export type ActionResult<T = unknown> =
   | { ok: true; data?: T; message?: string }

@@ -12,7 +12,6 @@ function err(e: unknown, dup: string): string {
   return "No se pudo completar la operación.";
 }
 
-// --------------------------- Proveedores -----------------------------
 export async function guardarProveedor(
   _prev: ActionResult | null,
   formData: FormData,
@@ -78,7 +77,6 @@ export async function eliminarProveedor(id: number): Promise<ActionResult> {
   }
 }
 
-// --------------------------- Compras ---------------------------------
 
 /**
  * Crea o actualiza una compra en estado Borrador.

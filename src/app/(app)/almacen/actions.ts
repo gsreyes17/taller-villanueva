@@ -18,7 +18,6 @@ function err(e: unknown, dup: string): string {
   return "No se pudo completar la operación.";
 }
 
-// --------------------------- Categorías ------------------------------
 export async function guardarCategoria(
   _prev: ActionResult | null,
   formData: FormData,
@@ -93,7 +92,6 @@ export async function eliminarCategoria(id: number): Promise<ActionResult> {
   }
 }
 
-// --------------------------- Unidades --------------------------------
 export async function guardarUnidad(
   _prev: ActionResult | null,
   formData: FormData,
@@ -144,7 +142,6 @@ export async function eliminarUnidad(id: number): Promise<ActionResult> {
   }
 }
 
-// --------------------------- Ubicaciones -----------------------------
 export async function guardarUbicacion(
   _prev: ActionResult | null,
   formData: FormData,

@@ -110,7 +110,6 @@ export default async function ObrasPage({
         tipoMime: a.tipoMime,
         esImagen: (a.tipoMime ?? "").startsWith("image/"),
       })),
-      // --- Costeo real ---
       manoObra: o.manoObra.map((h) => ({
         idManoObra: h.idManoObra,
         descripcion: h.descripcion,

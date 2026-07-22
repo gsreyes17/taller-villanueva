@@ -34,3 +34,7 @@ yarn-error.log*
 next-env.d.ts
 
 /private/
+
+# Documentos de presentación (PDF/Word/HTML) — no se versionan
+/docs/
+scripts/gen-word.mjs

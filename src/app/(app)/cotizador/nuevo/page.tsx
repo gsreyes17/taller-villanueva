@@ -2,6 +2,8 @@
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth";
+import { toNumber } from "@/lib/utils";
 import { CotizacionForm } from "./cotizacion-form";
 
 export const dynamic = "force-dynamic";
@@ -11,17 +13,23 @@ export default async function NuevaCotizacionPage({
 }: {
   searchParams: Promise<{ productoId?: string; tipo?: string }>;
 }) {
+  await requireUser();
   const { productoId } = await searchParams;
-  let productoPredefinido = null;
 
-  if (productoId) {
-    const prod = await prisma.productoCatalogo.findUnique({
-      where: { idProducto: parseInt(productoId, 10) },
-    });
-    if (prod) {
-      productoPredefinido = prod;
-    }
-  }
+  const [prodRaw, clientes] = await Promise.all([
+    productoId
+      ? prisma.productoCatalogo.findUnique({ where: { idProducto: parseInt(productoId, 10) } })
+      : Promise.resolve(null),
+    prisma.cliente.findMany({
+      where: { estado: "Activo" },
+      select: { idCliente: true, nombreRazonSocial: true, identificacionFiscal: true, telefono: true, correo: true },
+      orderBy: { nombreRazonSocial: "asc" },
+    }),
+  ]);
+
+  const productoPredefinido = prodRaw
+    ? { nombre: prodRaw.nombre, descripcion: prodRaw.descripcion, precioBase: toNumber(prodRaw.precioBase), imagenUrl: prodRaw.imagenUrl }
+    : null;
 
   return (
     <div className="space-y-6">
@@ -41,7 +49,7 @@ export default async function NuevaCotizacionPage({
       </div>
 
       <div className="max-w-4xl">
-        <CotizacionForm producto={productoPredefinido} />
+        <CotizacionForm producto={productoPredefinido} clientes={clientes} />
       </div>
     </div>
   );

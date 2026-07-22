@@ -52,7 +52,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         className={cn(
-          "relative z-10 my-8 w-full rounded-2xl bg-[#fdfdfe] shadow-2xl ring-1 ring-black/5",
+          "relative z-10 my-8 w-full rounded-2xl bg-surface shadow-2xl ring-1 ring-black/5",
           widths[size],
         )}
       >

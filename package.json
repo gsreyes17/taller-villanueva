@@ -16,13 +16,17 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "db:catalogo": "tsx scripts/seed-catalogo.ts",
+    "db:operacion": "tsx scripts/seed-operacion.ts",
     "db:demo": "tsx scripts/seed-demo.ts",
     "db:smoke": "tsx scripts/smoke-triggers.ts",
+    "db:smoke:v2": "tsx scripts/smoke-v2.ts",
     "dev:next": "next dev",
     "dev:electron": "wait-on tcp:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron .",
     "electron:dev": "concurrently -k -n next,electron -c blue,magenta \"npm:dev:next\" \"npm:dev:electron\"",
     "electron:build": "prisma generate && next build && electron-builder",
-    "electron:build:dir": "prisma generate && next build && electron-builder --dir"
+    "electron:build:dir": "prisma generate && next build && electron-builder --dir",
+    "doc:word": "node scripts/gen-word.mjs"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -54,6 +58,7 @@
     "@types/react-dom": "^19.0.0",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
+    "docx": "^9.7.1",
     "dotenv": "^16.4.7",
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8",
